@@ -10,6 +10,7 @@ import { systemService } from './services/SystemService';
 
 async function bootstrap() {
   logger.info(`Starting ${config.botName} V${config.version}...`);
+  logger.info(`Environment: ${config.nodeEnv}`);
   logger.info('Database initialized successfully.');
 
   // Load all commands from src/commands/
@@ -32,7 +33,11 @@ async function bootstrap() {
 
   // Start web dashboard
   startDashboardServer();
-  logger.info(`Dashboard available on port ${config.port} — open via your host's domain/IP, not localhost.`);
+  if (config.dashboardUrl) {
+    logger.info(`Dashboard available at: ${config.dashboardUrl}`);
+  } else {
+    logger.info(`Dashboard available on port ${config.port}. Set DASHBOARD_URL in .env for production.`);
+  }
 
   // Connect to WhatsApp
   await botClient.connect();

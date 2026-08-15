@@ -19,6 +19,11 @@ export interface BotConfig {
   footer: string;
   menuStyle: string | number;
   timezone: string;
+  // Production URLs
+  dashboardUrl: string;
+  apiUrl: string;
+  corsOrigins: string[];
+  nodeEnv: string;
 }
 
 export const config: BotConfig = {
@@ -37,6 +42,11 @@ export const config: BotConfig = {
   footer: process.env.FOOTER || 'Powered by Hemix Bot V1.0',
   menuStyle: process.env.MENU_STYLE || '1',
   timezone: process.env.TIMEZONE || 'Asia/Karachi',
+  // Production URLs — set via env, never hardcode localhost
+  dashboardUrl: process.env.DASHBOARD_URL || process.env.FRONTEND_URL || '',
+  apiUrl: process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || '',
+  corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
+  nodeEnv: process.env.NODE_ENV || 'development',
 };
 
 export default config;

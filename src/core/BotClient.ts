@@ -14,24 +14,122 @@ import { config } from '../config';
 import logger from '../utils/logger';
 import { detectPlatform, formatJid } from '../utils/helpers';
 
-export type ConnectionState = 'WAITING' | 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING';
+export type ConnectionState =
+  | 'WAITING'
+  | 'CONNECTING'
+  | 'CONNECTED'
+  | 'DISCONNECTED'
+  | 'RECONNECTING'
+  | 'AUTH_FAILED';
 
 export class BotClient extends EventEmitter {
   public sock: WASocket | null = null;
   public state: ConnectionState = 'WAITING';
+  public phoneNumber: string | null = null;
+  public userName: string | null = null;
+
   private qrCode: string | null = null;
   private sessionDir: string;
+  private isConnecting: boolean = false;
+
+  private currentBackoffDelay: number = 3000;
+  private readonly MIN_BACKOFF_DELAY: number = 3000;
+  private readonly MAX_BACKOFF_DELAY: number = 60000;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
     super();
     this.sessionDir = path.join('data', 'session');
+    this.ensureSessionDir();
+  }
+
+  private ensureSessionDir(): void {
     if (!fs.existsSync(this.sessionDir)) {
       fs.mkdirSync(this.sessionDir, { recursive: true });
     }
   }
 
-  public async connect(): Promise<void> {
+  private deleteSessionDir(): void {
     try {
+      if (fs.existsSync(this.sessionDir)) {
+        fs.rmSync(this.sessionDir, { recursive: true, force: true });
+        logger.info(`Session directory deleted at ${this.sessionDir}`);
+      }
+    } catch (err) {
+      logger.error(`Failed to delete session directory at ${this.sessionDir}`, err);
+    }
+  }
+
+  private clearReconnectTimeout(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+  }
+
+  private cleanupSocket(): void {
+    this.clearReconnectTimeout();
+
+    if (this.sock) {
+      try {
+        this.sock.ev.removeAllListeners('creds.update');
+        this.sock.ev.removeAllListeners('connection.update');
+        this.sock.ev.removeAllListeners('messages.upsert');
+        this.sock.end(undefined);
+      } catch (err) {
+        logger.error('Error ending socket connection during cleanup', err);
+      }
+      this.sock = null;
+    }
+
+    this.qrCode = null;
+    this.phoneNumber = null;
+    this.userName = null;
+  }
+
+  private scheduleReconnect(): void {
+    this.clearReconnectTimeout();
+    this.state = 'RECONNECTING';
+    this.emit('connection_update', { state: this.state });
+
+    const delaySeconds = Math.round(this.currentBackoffDelay / 1000);
+    logger.warn(`Scheduling reconnection in ${delaySeconds}s (backoff delay)...`);
+
+    const nextDelay = this.currentBackoffDelay;
+    this.currentBackoffDelay = Math.min(this.currentBackoffDelay * 2, this.MAX_BACKOFF_DELAY);
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = null;
+      this.connect().catch((err) => {
+        logger.error('Error during automatic reconnection attempt:', err);
+      });
+    }, nextDelay);
+  }
+
+  public async connect(): Promise<void> {
+    if (this.isConnecting) {
+      logger.warn('Connection attempt already in progress. Guarding against duplicate connect() call.');
+      return;
+    }
+
+    if (this.state === 'CONNECTED' && this.sock) {
+      logger.info('BotClient is already connected.');
+      return;
+    }
+
+    this.isConnecting = true;
+    this.clearReconnectTimeout();
+
+    try {
+      this.ensureSessionDir();
+
+      const credsFilePath = path.join(this.sessionDir, 'creds.json');
+      if (fs.existsSync(credsFilePath)) {
+        logger.info('Session credentials found (creds.json). Restoring WhatsApp session...');
+      } else {
+        logger.info('No session credentials found. Starting fresh authentication session...');
+      }
+
       this.state = 'CONNECTING';
       this.emit('connection_update', { state: this.state });
       logger.info('Initializing WhatsApp connection...');
@@ -60,7 +158,7 @@ export class BotClient extends EventEmitter {
         if (qr) {
           this.qrCode = qr;
           this.state = 'WAITING';
-          logger.info('QR Code generated. Scan to log in.');
+          logger.info('QR Code generated/refreshed. Scan with WhatsApp.');
           this.emit('qr', qr);
           this.emit('connection_update', { state: this.state, qr });
         }
@@ -71,24 +169,34 @@ export class BotClient extends EventEmitter {
         } else if (connection === 'open') {
           this.state = 'CONNECTED';
           this.qrCode = null;
-          logger.info('WhatsApp connection established successfully!');
-          this.emit('connection_update', { state: this.state });
+          this.currentBackoffDelay = this.MIN_BACKOFF_DELAY;
+
+          const userJid = this.sock?.user?.id;
+          this.phoneNumber = userJid ? userJid.split(':')[0].split('@')[0] : null;
+          this.userName = this.sock?.user?.name || this.sock?.user?.notify || config.botName || 'Hemix';
+
+          logger.info(`WhatsApp connection established successfully! Logged in as: ${this.userName} (${this.phoneNumber || 'unknown'})`);
+          this.emit('connection_update', { state: this.state, user: this.getUserInfo() });
 
           await this.sendConnectedMessage();
         } else if (connection === 'close') {
-          const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const error = lastDisconnect?.error as any;
+          const statusCode = error?.output?.statusCode || error?.code || error?.status;
+          const errorMessage = error?.message || (error ? String(error) : 'Unknown error');
 
-          logger.warn(`Connection closed. Status code: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+          logger.error(`Connection closed. Status code: ${statusCode ?? 'Unknown'}, Reason: ${errorMessage}`, error);
 
-          if (shouldReconnect) {
-            this.state = 'RECONNECTING';
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+
+          if (isLoggedOut) {
+            this.state = 'AUTH_FAILED';
+            logger.error('Logged out from WhatsApp session. Deleting session directory...');
+            this.cleanupSocket();
+            this.deleteSessionDir();
             this.emit('connection_update', { state: this.state });
-            setTimeout(() => this.connect(), 3000);
           } else {
-            this.state = 'DISCONNECTED';
-            this.emit('connection_update', { state: this.state });
-            logger.error('Logged out from WhatsApp session. Please delete data/session and re-scan QR.');
+            this.cleanupSocket();
+            this.scheduleReconnect();
           }
         }
       });
@@ -97,9 +205,11 @@ export class BotClient extends EventEmitter {
         this.emit('message_received', data);
       });
     } catch (error) {
-      logger.error('Failed to connect BotClient', error);
+      logger.error('Failed to connect BotClient:', error);
       this.state = 'DISCONNECTED';
       this.emit('connection_update', { state: this.state, error });
+    } finally {
+      this.isConnecting = false;
     }
   }
 
@@ -107,7 +217,7 @@ export class BotClient extends EventEmitter {
     if (!this.sock) return;
 
     try {
-      const name = this.sock.user?.name || config.botName || 'Hemix';
+      const name = this.userName || this.sock.user?.name || config.botName || 'Hemix';
       const platform = detectPlatform();
       const modeFormatted = config.botMode === 'public' ? 'Public' : 'Private';
 
@@ -135,19 +245,14 @@ export class BotClient extends EventEmitter {
   }
 
   public async disconnect(): Promise<void> {
-    if (this.sock) {
-      try {
-        await this.sock.end(undefined);
-      } catch (err) {
-        logger.error('Error disconnecting socket', err);
-      }
-      this.sock = null;
-    }
+    this.cleanupSocket();
     this.state = 'DISCONNECTED';
     this.emit('connection_update', { state: this.state });
+    logger.info('BotClient disconnected.');
   }
 
   public async reconnect(): Promise<void> {
+    this.currentBackoffDelay = this.MIN_BACKOFF_DELAY;
     await this.disconnect();
     await this.connect();
   }
@@ -176,6 +281,22 @@ export class BotClient extends EventEmitter {
     logger.info(`Generated pairing code for ${cleanNumber}: ${code}`);
     this.emit('pairing_code', code);
     return code;
+  }
+
+  public getState(): ConnectionState {
+    return this.state;
+  }
+
+  public getPhoneNumber(): string | null {
+    return this.phoneNumber;
+  }
+
+  public getUserInfo(): { phoneNumber: string | null; userName: string | null; id: string | null } {
+    return {
+      phoneNumber: this.phoneNumber,
+      userName: this.userName,
+      id: this.sock?.user?.id || null,
+    };
   }
 }
 

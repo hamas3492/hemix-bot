@@ -14,15 +14,21 @@ export const botRouter = Router();
 // Apply auth middleware to all bot routes
 botRouter.use(authMiddleware);
 
-// GET /api/bot/status - connection status, uptime, platform
+// GET /api/bot/status - connection status, uptime, platform, phone number
 botRouter.get('/status', (req: Request, res: Response) => {
-  res.json({
-    state: botClient.state,
-    uptime: Math.floor(process.uptime()),
-    platform: detectPlatform(),
-    user: botClient.sock?.user || null,
-    hasQR: !!botClient.getQR(),
-  });
+  try {
+    const phone = botClient.getPhoneNumber?.() || null;
+    res.json({
+      state: botClient.state,
+      uptime: Math.floor(process.uptime()),
+      platform: detectPlatform(),
+      user: botClient.sock?.user || null,
+      phoneNumber: phone,
+      hasQR: !!botClient.getQR(),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get bot status' });
+  }
 });
 
 // POST /api/bot/start - start bot
@@ -33,7 +39,7 @@ botRouter.post('/start', async (req: Request, res: Response) => {
       return;
     }
     botClient.connect().catch((err) => {
-      console.error('Error starting bot in background:', err);
+      console.error('[Bot] Error starting bot in background:', err);
     });
     res.json({ success: true, message: 'Bot startup initiated', state: 'CONNECTING' });
   } catch (error: any) {
@@ -66,7 +72,7 @@ botRouter.get('/qr', async (req: Request, res: Response) => {
   try {
     const rawQr = botClient.getQR();
     if (!rawQr) {
-      res.json({ qr: null, raw: null, message: 'No active QR code available' });
+      res.json({ qr: null, raw: null, message: 'No active QR code. Start the bot to generate one.' });
       return;
     }
     const dataUrl = await QRCode.toDataURL(rawQr);
@@ -88,9 +94,16 @@ botRouter.post('/pair', async (req: Request, res: Response) => {
     if (!botClient.sock) {
       // Connect first if socket isn't active
       await botClient.connect();
+      // Wait a moment for socket to initialize
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     const cleanNumber = number.replace(/[^0-9]/g, '');
+    if (cleanNumber.length < 5) {
+      res.status(400).json({ error: 'Invalid phone number format' });
+      return;
+    }
+
     const code = await botClient.getPairingCode(cleanNumber);
     res.json({ success: true, code, number: cleanNumber });
   } catch (error: any) {
@@ -108,7 +121,7 @@ botRouter.post('/disconnect', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/bot/logout - logout WhatsApp session
+// POST /api/bot/logout - logout WhatsApp session (clears session files)
 botRouter.post('/logout', async (req: Request, res: Response) => {
   try {
     await botClient.disconnect();
@@ -124,7 +137,6 @@ botRouter.post('/logout', async (req: Request, res: Response) => {
 });
 
 // Helper to count command files — CACHED to avoid filesystem walk on every poll.
-// The count doesn't change at runtime, so computing it once is sufficient.
 let _cachedCommandCount: number | null = null;
 function getCommandCount(): number {
   if (_cachedCommandCount !== null) return _cachedCommandCount;
@@ -165,13 +177,12 @@ botRouter.get('/system', (req: Request, res: Response) => {
     const cpus = os.cpus();
     const cpuModel = cpus.length > 0 ? cpus[0].model : 'Unknown';
     const cpuCores = cpus.length;
-
-    // Estimate CPU load from loadavg or os
     const loadAvg = os.loadavg();
 
     const plugins = db.getAllPlugins();
     const commandCount = getCommandCount();
 
+    // Lightweight response — only essential fields
     res.json({
       cpu: {
         model: cpuModel,
@@ -180,9 +191,9 @@ botRouter.get('/system', (req: Request, res: Response) => {
         usage: Math.min(100, Math.round((loadAvg[0] / (cpuCores || 1)) * 100)),
       },
       ram: {
-        total: Math.round(totalMem / (1024 * 1024)), // MB
-        used: Math.round(usedMem / (1024 * 1024)),   // MB
-        free: Math.round(freeMem / (1024 * 1024)),   // MB
+        total: Math.round(totalMem / (1024 * 1024)),
+        used: Math.round(usedMem / (1024 * 1024)),
+        free: Math.round(freeMem / (1024 * 1024)),
         percentage: memoryPercentage,
       },
       processMemory: {
