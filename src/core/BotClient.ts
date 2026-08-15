@@ -10,7 +10,6 @@ import pino from 'pino';
 import { EventEmitter } from 'events';
 import path from 'path';
 import fs from 'fs';
-import QRCode from 'qrcode';
 import { config } from '../config';
 import logger from '../utils/logger';
 import { detectPlatform, formatJid } from '../utils/helpers';
@@ -109,52 +108,6 @@ export class BotClient extends EventEmitter {
     }, nextDelay);
   }
 
-  private async printQRToConsole(qr: string): Promise<void> {
-    try {
-      const qrText = await QRCode.toString(qr, { type: 'terminal', small: true });
-      console.log('\n');
-      console.log('╔═══════════════════════════════════════════╗');
-      console.log('║  📱 Scan this QR Code with WhatsApp:       ║');
-      console.log('║  WhatsApp → Settings → Linked Devices      ║');
-      console.log('║  → Link a Device → Scan QR                ║');
-      console.log('╚═══════════════════════════════════════════╝');
-      console.log(qrText);
-      console.log('───────────────────────────────────────────');
-    } catch (err) {
-      logger.error('Failed to print QR to console:', err);
-    }
-  }
-
-  private async tryAutoPairingCode(): Promise<void> {
-    if (this.pairingCodeRequested) return;
-    if (!config.ownerNumber) return;
-    if (!this.sock) return;
-
-    this.pairingCodeRequested = true;
-
-    try {
-      const cleanNumber = config.ownerNumber.replace(/[^0-9]/g, '');
-      const code = await this.sock.requestPairingCode(cleanNumber);
-
-      const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
-
-      console.log('\n');
-      console.log('╔═══════════════════════════════════════════╗');
-      console.log(`║  🔑 PAIRING CODE: ${formattedCode.padEnd(22)}║`);
-      console.log('║                                           ║');
-      console.log(`║  Enter this code in WhatsApp:             ║`);
-      console.log('║  WhatsApp → Settings → Linked Devices      ║');
-      console.log('║  → Link with Phone Number                  ║');
-      console.log('╚═══════════════════════════════════════════╝');
-      console.log('\n');
-
-      logger.info(`Pairing code generated for ${cleanNumber}: ${formattedCode}`);
-      this.emit('pairing_code', code);
-    } catch (err) {
-      logger.error('Failed to generate pairing code:', err);
-    }
-  }
-
   public async connect(): Promise<void> {
     if (this.isConnecting) {
       logger.warn('Connection attempt already in progress.');
@@ -206,18 +159,9 @@ export class BotClient extends EventEmitter {
         if (qr) {
           this.qrCode = qr;
           this.state = 'WAITING';
-          logger.info('QR Code generated. Scan with WhatsApp or use pairing code.');
+          logger.info('QR Code generated. Available in the dashboard — scan from there.');
 
-          // Print QR to console (visible in Katabump Console tab)
-          this.printQRToConsole(qr).catch(() => {});
-
-          // Auto-request pairing code if OWNER_NUMBER is set
-          if (config.ownerNumber && !this.pairingCodeRequested) {
-            setTimeout(() => {
-              this.tryAutoPairingCode().catch(() => {});
-            }, 3000);
-          }
-
+          // QR is only shown in the dashboard, NOT in the console.
           this.emit('qr', qr);
           this.emit('connection_update', { state: this.state, qr });
         }
@@ -337,7 +281,7 @@ export class BotClient extends EventEmitter {
     }
     const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
     const code = await this.sock.requestPairingCode(cleanNumber);
-    logger.info(`Pairing code for ${cleanNumber}: ${code}`);
+    logger.info(`Pairing code generated for ${cleanNumber}: ${code}`);
     this.emit('pairing_code', code);
     return code;
   }

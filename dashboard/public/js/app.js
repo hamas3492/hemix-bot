@@ -553,7 +553,16 @@ async function loadAISettings() {
     const ai = data.ai;
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
     if (document.getElementById('ai-enabled-toggle')) document.getElementById('ai-enabled-toggle').checked = Boolean(ai.enabled);
-    setVal('ai-api-key', ai.apiKey || '');
+    const keyInput = document.getElementById('ai-api-key');
+    if (keyInput) {
+      if (ai.hasApiKey) {
+        keyInput.value = '';
+        keyInput.placeholder = ai.apiKey || '•••••••• (key is set)';
+      } else {
+        keyInput.value = '';
+        keyInput.placeholder = 'Enter your API key';
+      }
+    }
     setVal('ai-base-url', ai.baseUrl || 'https://api.openai.com/v1');
     setVal('ai-model', ai.model || 'gpt-3.5-turbo');
   } catch (err) { console.error('AI settings load error:', err); }
@@ -565,7 +574,7 @@ function setupAIForm() {
     e.preventDefault();
     const body = {
       enabled: document.getElementById('ai-enabled-toggle')?.checked,
-      apiKey: document.getElementById('ai-api-key')?.value,
+      apiKey: document.getElementById('ai-api-key')?.value || null,
       baseUrl: document.getElementById('ai-base-url')?.value,
       model: document.getElementById('ai-model')?.value,
       provider: 'openai',

@@ -6,8 +6,9 @@ import { commandRegistry } from './core/PluginSystem';
 import { messageHandler } from './handlers/MessageHandler';
 import { eventHandler } from './handlers/EventHandler';
 import { startDashboardServer } from '../dashboard/server';
-import { startTunnel } from './utils/tunnel';
 import { systemService } from './services/SystemService';
+import fs from 'fs';
+import path from 'path';
 
 async function bootstrap() {
   logger.info(`Starting ${config.botName} V${config.version}...`);
@@ -32,23 +33,23 @@ async function bootstrap() {
     }
   });
 
-  // Start web dashboard
+  // Start web dashboard only — bot connection is initiated from the dashboard
   startDashboardServer();
 
-  // Auto-start tunnel for public dashboard access (Katabump doesn't expose web ports)
-  // Tunnel is enabled by default. Set ENABLE_TUNNEL=false in .env to disable.
-  if (process.env.ENABLE_TUNNEL !== 'false') {
-    const tunnelPort = config.port;
-    // Small delay to ensure server is ready
-    setTimeout(() => {
-      startTunnel(tunnelPort).catch((err) => {
-        logger.warn(`Failed to start tunnel: ${err}`);
-      });
-    }, 3000);
-  }
+  // If a saved WhatsApp session exists, auto-reconnect so the bot comes back online
+  // after a server restart. If no session exists, user must connect from the dashboard.
+  const sessionDir = path.join(process.cwd(), 'data', 'session');
+  const credsFile = path.join(sessionDir, 'creds.json');
 
-  // Connect to WhatsApp
-  await botClient.connect();
+  if (fs.existsSync(credsFile)) {
+    logger.info('Existing WhatsApp session found. Auto-reconnecting...');
+    botClient.connect().catch((err) => {
+      logger.error('Auto-reconnect failed. Start the bot from the dashboard.', err);
+    });
+  } else {
+    logger.info('No WhatsApp session found. Connect from the dashboard at the website URL.');
+    logger.info('Dashboard → WhatsApp Link tab → click "Start Bot" → scan QR or use pairing code.');
+  }
 }
 
 // Global Exception Handlers (log don't crash)

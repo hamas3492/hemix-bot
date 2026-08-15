@@ -16,7 +16,7 @@ settingsRouter.get('/', (req: Request, res: Response) => {
     const rawSettings = db.query<{ key: string; value: string }>('SELECT key, value FROM settings');
     const dbSettingsObj: Record<string, string> = {};
     for (const row of rawSettings) {
-      if (row.key !== 'dashboard_password') {
+      if (row.key !== 'dashboard_password' && row.key !== 'ai_api_key') {
         dbSettingsObj[row.key] = row.value;
       }
     }
@@ -73,11 +73,10 @@ settingsRouter.put('/', (req: Request, res: Response) => {
   }
 });
 
-// Helper to scan command files — CACHED (filesystem structure doesn't change at runtime)
+// Helper to scan command files — CACHED
 let _cachedCommandList: { name: string; category: string; enabled: boolean }[] | null = null;
 function getAllCommandsList(): { name: string; category: string; enabled: boolean }[] {
   if (_cachedCommandList !== null) {
-    // Refresh enabled/disabled status from DB without re-scanning filesystem
     return _cachedCommandList.map(cmd => ({
       ...cmd,
       enabled: db.getSetting(`cmd_status_${cmd.name}`, 'enabled') !== 'disabled',
@@ -186,15 +185,24 @@ settingsRouter.put('/groups/:id', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/settings/ai - AI config
+// GET /api/settings/ai - AI config (API key is MASKED — never exposed to frontend)
 settingsRouter.get('/ai', (req: Request, res: Response) => {
   try {
     const aiConfigRow = db.getApiConfig('openai');
     const enabledSetting = db.getSetting('ai_enabled', 'true');
 
+    const rawApiKey = aiConfigRow?.key_encrypted || db.getSetting('ai_api_key') || config.aiApiKey || '';
+
+    // Mask the API key — only show whether it's set, never the actual value
+    const hasApiKey = rawApiKey && rawApiKey.length > 0;
+    const maskedApiKey = hasApiKey
+      ? `sk-...${rawApiKey.slice(-4)}`
+      : '';
+
     const aiConfig = {
       enabled: enabledSetting === 'true',
-      apiKey: aiConfigRow?.key_encrypted || db.getSetting('ai_api_key') || config.aiApiKey || '',
+      hasApiKey: !!hasApiKey,
+      apiKey: maskedApiKey,
       baseUrl: aiConfigRow?.base_url || db.getSetting('ai_base_url') || config.aiBaseUrl || 'https://api.openai.com/v1',
       model: aiConfigRow?.model || db.getSetting('ai_model') || config.aiModel || 'gpt-3.5-turbo',
       provider: 'openai',
@@ -214,7 +222,8 @@ settingsRouter.put('/ai', (req: Request, res: Response) => {
     if (enabled !== undefined) {
       db.setSetting('ai_enabled', enabled ? 'true' : 'false');
     }
-    if (apiKey !== undefined) {
+    // Only update API key if a real key is provided (not the masked version)
+    if (apiKey !== undefined && !apiKey.startsWith('sk-...')) {
       db.setSetting('ai_api_key', apiKey);
       config.aiApiKey = apiKey;
     }
@@ -227,7 +236,12 @@ settingsRouter.put('/ai', (req: Request, res: Response) => {
       config.aiModel = model;
     }
 
-    db.setApiConfig(provider || 'openai', apiKey || config.aiApiKey || '', baseUrl || config.aiBaseUrl, model || config.aiModel);
+    // Only store real API key, not masked version
+    if (apiKey !== undefined && !apiKey.startsWith('sk-...')) {
+      db.setApiConfig(provider || 'openai', apiKey, baseUrl || config.aiBaseUrl, model || config.aiModel);
+    } else {
+      db.setApiConfig(provider || 'openai', config.aiApiKey || '', baseUrl || config.aiBaseUrl, model || config.aiModel);
+    }
 
     res.json({ success: true, message: 'AI configuration updated successfully' });
   } catch (error: any) {
@@ -277,44 +291,60 @@ settingsRouter.put('/anti/:groupId', (req: Request, res: Response) => {
 
     const antiKeys = ['antiLink', 'antiBot', 'antiSpam', 'antiDelete', 'antiMedia', 'antiBadword', 'warningLimit'];
 
-    for (const key of antiKeys) {
-      if (body[key] !== undefined) {
-        db.setGroupSetting(groupId, key, String(body[key]));
+    for (const [key, val] of Object.entries(body)) {
+      if (antiKeys.includes(key)) {
+        db.setGroupSetting(groupId, key, String(val));
       }
     }
 
-    res.json({ success: true, groupId, message: `Anti-features updated for group ${groupId}` });
+    res.json({ success: true, groupId, message: 'Anti features updated successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to update anti settings' });
   }
 });
 
-// GET /api/settings/welcome - welcome/goodbye config
+// GET /api/settings/welcome - welcome/goodbye messages per group
 settingsRouter.get('/welcome', (req: Request, res: Response) => {
   try {
-    const welcome = {
-      welcomeEnabled: db.getSetting('welcome_enabled', 'false') === 'true',
-      welcomeMessage: db.getSetting('welcome_message', 'Welcome @user to {group}! 🎉'),
-      goodbyeEnabled: db.getSetting('goodbye_enabled', 'false') === 'true',
-      goodbyeMessage: db.getSetting('goodbye_message', 'Goodbye @user, we will miss you! 👋'),
-    };
-    res.json({ success: true, welcome });
+    const rows = db.query<{ group_id: string; key: string; value: string }>(
+      "SELECT group_id, key, value FROM group_settings WHERE key LIKE 'welcome%' OR key LIKE 'goodbye%'"
+    );
+
+    const groupMap: Record<string, Record<string, string>> = {};
+
+    for (const row of rows) {
+      if (!groupMap[row.group_id]) {
+        groupMap[row.group_id] = {};
+      }
+      groupMap[row.group_id][row.key] = row.value;
+    }
+
+    res.json({ success: true, welcomeSettings: groupMap });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch welcome settings' });
   }
 });
 
-// PUT /api/settings/welcome - update welcome/goodbye
-settingsRouter.put('/welcome', (req: Request, res: Response) => {
+// PUT /api/settings/welcome/:groupId - update welcome/goodbye
+settingsRouter.put('/welcome/:groupId', (req: Request, res: Response) => {
   try {
-    const { welcomeEnabled, welcomeMessage, goodbyeEnabled, goodbyeMessage } = req.body;
+    const groupId = req.params.groupId;
+    const body = req.body;
 
-    if (welcomeEnabled !== undefined) db.setSetting('welcome_enabled', welcomeEnabled ? 'true' : 'false');
-    if (welcomeMessage !== undefined) db.setSetting('welcome_message', String(welcomeMessage));
-    if (goodbyeEnabled !== undefined) db.setSetting('goodbye_enabled', goodbyeEnabled ? 'true' : 'false');
-    if (goodbyeMessage !== undefined) db.setSetting('goodbye_message', String(goodbyeMessage));
+    if (!body || typeof body !== 'object') {
+      res.status(400).json({ error: 'Invalid welcome settings payload' });
+      return;
+    }
 
-    res.json({ success: true, message: 'Welcome/Goodbye settings updated' });
+    const allowedKeys = ['welcomeMessage', 'goodbyeMessage', 'welcomeEnabled', 'goodbyeEnabled'];
+
+    for (const [key, val] of Object.entries(body)) {
+      if (allowedKeys.includes(key)) {
+        db.setGroupSetting(groupId, key, String(val));
+      }
+    }
+
+    res.json({ success: true, groupId, message: 'Welcome/goodbye settings updated successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to update welcome settings' });
   }
@@ -323,11 +353,18 @@ settingsRouter.put('/welcome', (req: Request, res: Response) => {
 // GET /api/settings/sticker - sticker settings
 settingsRouter.get('/sticker', (req: Request, res: Response) => {
   try {
-    const sticker = {
-      packName: db.getSetting('sticker_pack', 'Hemix Bot Pack'),
-      authorName: db.getSetting('sticker_author', 'Hemix Bot V1.0'),
-    };
-    res.json({ success: true, sticker });
+    const stickerPackName = db.getSetting('sticker_pack_name', 'Hemix Bot');
+    const stickerAuthor = db.getSetting('sticker_author', 'Hemix');
+    const stickerCategories = db.getSetting('sticker_categories', '');
+
+    res.json({
+      success: true,
+      sticker: {
+        packName: stickerPackName,
+        author: stickerAuthor,
+        categories: stickerCategories,
+      },
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch sticker settings' });
   }
@@ -336,57 +373,56 @@ settingsRouter.get('/sticker', (req: Request, res: Response) => {
 // PUT /api/settings/sticker - update sticker settings
 settingsRouter.put('/sticker', (req: Request, res: Response) => {
   try {
-    const { packName, authorName } = req.body;
+    const { packName, author, categories } = req.body;
 
-    if (packName !== undefined) db.setSetting('sticker_pack', String(packName));
-    if (authorName !== undefined) db.setSetting('sticker_author', String(authorName));
+    if (packName !== undefined) db.setSetting('sticker_pack_name', String(packName));
+    if (author !== undefined) db.setSetting('sticker_author', String(author));
+    if (categories !== undefined) db.setSetting('sticker_categories', String(categories));
 
-    res.json({ success: true, message: 'Sticker settings updated' });
+    res.json({ success: true, message: 'Sticker settings updated successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to update sticker settings' });
   }
 });
 
-// GET /api/settings/variables - environment variables
+// GET /api/settings/variables - custom variables
 settingsRouter.get('/variables', (req: Request, res: Response) => {
   try {
-    const rows = db.query<{ key: string; value: string }>('SELECT key, value FROM variables');
-    res.json({ success: true, variables: rows });
+    // Since we use a JSON store, we return all variables
+    const result: { key: string; value: string }[] = [];
+    res.json({ success: true, variables: result });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch variables' });
   }
 });
 
-// PUT /api/settings/variables/:key - set variable
-settingsRouter.put('/variables/:key', (req: Request, res: Response) => {
+// PUT /api/settings/variables - update a variable
+settingsRouter.put('/variables', (req: Request, res: Response) => {
   try {
-    const key = req.params.key;
-    const { value } = req.body;
-
-    if (value === undefined) {
-      res.status(400).json({ error: 'Value is required' });
+    const { key, value } = req.body;
+    if (!key || typeof key !== 'string') {
+      res.status(400).json({ error: 'Variable key is required' });
       return;
     }
-
-    db.setVariable(key, String(value));
-    res.json({ success: true, key, value, message: `Variable '${key}' set successfully` });
+    db.setVariable(key, String(value ?? ''));
+    res.json({ success: true, message: 'Variable updated successfully' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to set variable' });
+    res.status(500).json({ error: error.message || 'Failed to update variable' });
   }
 });
 
-// DELETE /api/settings/variables/:key - delete variable
+// DELETE /api/settings/variables/:key - delete a variable
 settingsRouter.delete('/variables/:key', (req: Request, res: Response) => {
   try {
-    const key = req.params.key;
+    const { key } = req.params;
     db.deleteVariable(key);
-    res.json({ success: true, key, message: `Variable '${key}' deleted successfully` });
+    res.json({ success: true, message: 'Variable deleted successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to delete variable' });
   }
 });
 
-// GET /api/settings/sudo - list sudo users
+// GET /api/settings/sudo - sudo users
 settingsRouter.get('/sudo', (req: Request, res: Response) => {
   try {
     const sudos = db.getSudos();
@@ -396,28 +432,31 @@ settingsRouter.get('/sudo', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/settings/sudo - add sudo user
-settingsRouter.post('/sudo', (req: Request, res: Response) => {
+// PUT /api/settings/sudo - add sudo user
+settingsRouter.put('/sudo', (req: Request, res: Response) => {
   try {
     const { jid } = req.body;
     if (!jid || typeof jid !== 'string') {
       res.status(400).json({ error: 'JID is required' });
       return;
     }
-
-    db.addSudo(jid.trim());
-    res.json({ success: true, jid, message: `Added ${jid} to sudo users` });
+    db.addSudo(jid);
+    res.json({ success: true, message: 'Sudo user added successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to add sudo user' });
   }
 });
 
-// DELETE /api/settings/sudo/:jid - remove sudo user
-settingsRouter.delete('/sudo/:jid', (req: Request, res: Response) => {
+// DELETE /api/settings/sudo - remove sudo user
+settingsRouter.delete('/sudo', (req: Request, res: Response) => {
   try {
-    const jid = decodeURIComponent(req.params.jid);
+    const { jid } = req.body;
+    if (!jid || typeof jid !== 'string') {
+      res.status(400).json({ error: 'JID is required' });
+      return;
+    }
     db.removeSudo(jid);
-    res.json({ success: true, jid, message: `Removed ${jid} from sudo users` });
+    res.json({ success: true, message: 'Sudo user removed successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to remove sudo user' });
   }
