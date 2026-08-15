@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hemix Bot V1.0 - Admin Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="stylesheet" href="/css/fontawesome.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col md:flex-row antialiased selection:bg-purple-500 selection:text-white">
+
+  <!-- Mobile Top Bar -->
+  <header class="md:hidden flex items-center justify-between p-4 glass-panel border-b border-slate-800 sticky top-0 z-40 bg-[#0b0f19]/90 backdrop-blur-md">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-accent flex items-center justify-center text-white shadow-md shadow-purple-600/30">
+        <i class="fas fa-robot text-lg"></i>
+      </div>
+      <div>
+        <h1 class="font-extrabold text-base tracking-tight text-white">Hemix <span class="text-gradient">Bot V1.0</span></h1>
+        <div id="mobile-status-indicator" class="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+          <span>Checking...</span>
+        </div>
+      </div>
+    </div>
+    <button id="mobile-menu-btn" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/60 focus:outline-none">
+      <i class="fas fa-bars text-lg"></i>
+    </button>
+  </header>
+
+  <!-- Mobile Sidebar Backdrop Overlay -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/70 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
+
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a]/95 md:bg-transparent glass-panel border-r border-slate-800/80 flex flex-col justify-between transition-transform duration-300 transform -translate-x-full md:translate-x-0 h-full min-h-screen">
+    <div class="p-5">
+      <!-- Logo Header -->
+      <div class="flex items-center justify-between mb-8 pb-4 border-b border-slate-800/80">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-accent flex items-center justify-center text-white shadow-md shadow-purple-600/30">
+            <i class="fas fa-robot text-xl"></i>
+          </div>
+          <div>
+            <h1 class="font-extrabold text-lg text-white tracking-tight">Hemix <span class="text-gradient">Bot</span></h1>
+            <span class="text-[10px] uppercase font-bold tracking-widest text-purple-400 bg-purple-950/60 border border-purple-500/20 px-2 py-0.5 rounded-full">V1.0 Admin</span>
+          </div>
+        </div>
+        <button id="mobile-sidebar-close" class="md:hidden text-slate-400 hover:text-white p-1">
+          <i class="fas fa-times text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="space-y-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1">
+        <a href="#overview" data-section="sec-overview" class="nav-link active flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-white bg-purple-600/20 border border-purple-500/30 shadow-sm">
+          <i class="fas fa-chart-line text-purple-400 text-sm w-5 text-center"></i> Overview
+        </a>
+        <a href="#whatsapp" data-section="sec-whatsapp" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fab fa-whatsapp text-emerald-400 text-sm w-5 text-center"></i> WhatsApp Link
+        </a>
+        <a href="#commands" data-section="sec-commands" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-terminal text-blue-400 text-sm w-5 text-center"></i> Commands
+        </a>
+        <a href="#settings" data-section="sec-settings" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-sliders-h text-indigo-400 text-sm w-5 text-center"></i> Bot Settings
+        </a>
+        <a href="#ai" data-section="sec-ai" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-brain text-pink-400 text-sm w-5 text-center"></i> AI Config
+        </a>
+        <a href="#anti" data-section="sec-anti" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-shield-alt text-amber-400 text-sm w-5 text-center"></i> Anti Features
+        </a>
+        <a href="#group" data-section="sec-group" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-users text-cyan-400 text-sm w-5 text-center"></i> Group Settings
+        </a>
+        <a href="#welcome" data-section="sec-welcome" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-door-open text-teal-400 text-sm w-5 text-center"></i> Welcome / Goodbye
+        </a>
+        <a href="#sticker" data-section="sec-sticker" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-sticky-note text-yellow-400 text-sm w-5 text-center"></i> Sticker Settings
+        </a>
+        <a href="#variables" data-section="sec-variables" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-database text-orange-400 text-sm w-5 text-center"></i> Variables
+        </a>
+        <a href="#sudo" data-section="sec-sudo" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-user-shield text-red-400 text-sm w-5 text-center"></i> Sudo Users
+        </a>
+        <a href="#logs" data-section="sec-logs" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-scroll text-green-400 text-sm w-5 text-center"></i> Live Logs
+        </a>
+        <a href="#system" data-section="sec-system" class="nav-link flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+          <i class="fas fa-microchip text-violet-400 text-sm w-5 text-center"></i> System Info
+        </a>
+      </nav>
+    </div>
+
+    <!-- Sidebar Bottom Footer -->
+    <div class="p-4 border-t border-slate-800/80 bg-slate-900/40">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span class="text-xs font-semibold text-slate-300">Admin Session</span>
+        </div>
+        <button class="logout-btn p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 text-xs transition-all" title="Log Out">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+
+    <!-- Top Status Header (Desktop) -->
+    <div class="hidden md:flex items-center justify-between mb-8 pb-4 border-b border-slate-800/80">
+      <div>
+        <h2 id="section-title" class="text-2xl font-extrabold text-white tracking-tight">Dashboard Overview</h2>
+        <p id="section-desc" class="text-slate-400 text-xs mt-1">Real-time status, performance metrics, and quick bot controls.</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 text-xs font-medium text-slate-300">
+          <span class="text-slate-500">Uptime:</span>
+          <span id="header-uptime" class="font-mono text-purple-400 font-bold">0s</span>
+        </div>
+        <div id="desktop-status-badge" class="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-2">
+          <span id="header-status-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+          <span id="header-status-text">DISCONNECTED</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. OVERVIEW SECTION -->
+    <section id="sec-overview" class="content-section space-y-6">
+      <!-- Status & Quick Action Hero Card -->
+      <div class="glass-panel p-6 sm:p-8 rounded-2xl border border-slate-800 relative overflow-hidden">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div class="space-y-2">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/60 border border-purple-500/30 text-purple-300 text-xs font-semibold">
+              <i class="fas fa-signal text-purple-400"></i> Bot Engine Status
+            </div>
+            <h3 class="text-2xl sm:text-3xl font-extrabold text-white">
+              Bot is <span id="overview-bot-state" class="text-gradient">DISCONNECTED</span>
+            </h3>
+            <p id="overview-user-info" class="text-slate-400 text-xs sm:text-sm">
+              WhatsApp JID: <span class="font-mono text-slate-300">Not linked</span>
+            </p>
+          </div>
+
+          <!-- Quick Control Buttons -->
+          <div class="flex flex-wrap gap-2.5">
+            <button id="btn-start-bot" class="btn-gradient px-4 py-2.5 rounded-xl font-semibold text-xs text-white shadow-lg flex items-center gap-2">
+              <i class="fas fa-play"></i> Start Bot
+            </button>
+            <button id="btn-stop-bot" class="px-4 py-2.5 rounded-xl font-semibold text-xs text-white bg-red-600/80 hover:bg-red-600 border border-red-500/30 flex items-center gap-2 transition-all">
+              <i class="fas fa-stop"></i> Stop Bot
+            </button>
+            <button id="btn-restart-bot" class="px-4 py-2.5 rounded-xl font-semibold text-xs text-white bg-amber-600/80 hover:bg-amber-600 border border-amber-500/30 flex items-center gap-2 transition-all">
+              <i class="fas fa-sync-alt"></i> Restart Bot
+            </button>
+            <button id="btn-disconnect-bot" class="px-4 py-2.5 rounded-xl font-semibold text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-2 transition-all">
+              <i class="fas fa-plug-circle-xmark"></i> Disconnect
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Stats Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <!-- CPU Card -->
+        <div class="glass-card p-5 rounded-2xl border border-slate-800/80 space-y-3">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+            <span>CPU Usage</span>
+            <i class="fas fa-microchip text-purple-400 text-base"></i>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <span id="overview-cpu-pct" class="text-2xl font-extrabold text-white font-mono">0%</span>
+            <span id="overview-cpu-cores" class="text-xs text-slate-400">1 Core</span>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div id="overview-cpu-bar" class="h-full bg-gradient-to-r from-blue-500 to-purple-500 w-0 transition-all duration-500"></div>
+          </div>
+        </div>
+
+        <!-- RAM Card -->
+        <div class="glass-card p-5 rounded-2xl border border-slate-800/80 space-y-3">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+            <span>RAM Usage</span>
+            <i class="fas fa-memory text-blue-400 text-base"></i>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <span id="overview-ram-pct" class="text-2xl font-extrabold text-white font-mono">0%</span>
+            <span id="overview-ram-detail" class="text-xs text-slate-400">0 / 0 MB</span>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div id="overview-ram-bar" class="h-full bg-gradient-to-r from-purple-500 to-pink-500 w-0 transition-all duration-500"></div>
+          </div>
+        </div>
+
+        <!-- System Uptime Card -->
+        <div class="glass-card p-5 rounded-2xl border border-slate-800/80 space-y-3">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+            <span>Process Uptime</span>
+            <i class="fas fa-clock text-emerald-400 text-base"></i>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <span id="overview-uptime" class="text-2xl font-extrabold text-white font-mono">0s</span>
+          </div>
+          <p class="text-[11px] text-slate-500">Node process runtime</p>
+        </div>
+
+        <!-- Command Count Card -->
+        <div class="glass-card p-5 rounded-2xl border border-slate-800/80 space-y-3">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
+            <span>Loaded Commands</span>
+            <i class="fas fa-code text-amber-400 text-base"></i>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <span id="overview-cmd-count" class="text-2xl font-extrabold text-white font-mono">0</span>
+            <span class="text-xs text-slate-400">active</span>
+          </div>
+          <p class="text-[11px] text-slate-500">Plugins & features loaded</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. WHATSAPP LINK SECTION -->
+    <section id="sec-whatsapp" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fab fa-whatsapp text-emerald-400"></i> WhatsApp Connection Manager
+            </h3>
+            <p class="text-slate-400 text-xs mt-1">Connect Hemix Bot via Pairing Code or QR Code scanner.</p>
+          </div>
+          <div class="flex gap-2">
+            <button id="wa-logout-btn" class="px-3.5 py-2 rounded-xl bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold flex items-center gap-2 transition-all">
+              <i class="fas fa-trash-alt"></i> Logout Session
+            </button>
+          </div>
+        </div>
+
+        <!-- Connection Tabs -->
+        <div class="flex border-b border-slate-800">
+          <button id="wa-tab-pair" class="px-5 py-2.5 font-semibold text-xs text-purple-400 border-b-2 border-purple-500 flex items-center gap-2 transition-all">
+            <i class="fas fa-mobile-alt"></i> Pairing Code
+          </button>
+          <button id="wa-tab-qr" class="px-5 py-2.5 font-semibold text-xs text-slate-400 border-b-2 border-transparent hover:text-slate-200 flex items-center gap-2 transition-all">
+            <i class="fas fa-qrcode"></i> QR Code
+          </button>
+        </div>
+
+        <!-- PAIRING CODE TAB PANEL -->
+        <div id="wa-panel-pair" class="space-y-4 max-w-xl">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">WhatsApp Number with Country Code</label>
+            <div class="flex gap-3">
+              <input type="text" id="wa-phone-input" placeholder="e.g. 923001234567" class="glass-input flex-1 px-4 py-2.5 rounded-xl text-xs placeholder-slate-500">
+              <button id="wa-get-code-btn" class="btn-gradient px-5 py-2.5 rounded-xl font-semibold text-xs text-white flex items-center gap-2 shrink-0">
+                <i class="fas fa-key"></i> Get Pairing Code
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Include country code without '+' or special characters.</p>
+          </div>
+
+          <!-- Result Display Box -->
+          <div id="wa-pair-result-box" class="hidden p-5 rounded-2xl bg-slate-900/90 border border-purple-500/30 text-center space-y-2">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Pairing Code</span>
+            <div id="wa-pair-code-display" class="font-mono text-3xl font-extrabold text-purple-400 tracking-widest py-2 bg-purple-950/40 rounded-xl border border-purple-500/20">
+              --------
+            </div>
+            <p class="text-xs text-slate-400">Open WhatsApp &gt; Linked Devices &gt; Link with phone number instead.</p>
+          </div>
+        </div>
+
+        <!-- QR CODE TAB PANEL -->
+        <div id="wa-panel-qr" class="hidden space-y-4">
+          <div class="flex flex-col items-center justify-center p-6 rounded-2xl bg-slate-900/80 border border-slate-800 text-center">
+            <div class="w-64 h-64 bg-white p-3 rounded-xl flex items-center justify-center shadow-lg relative mb-4">
+              <img id="wa-qr-img" src="" alt="WhatsApp QR Code" class="w-full h-full object-contain hidden">
+              <div id="wa-qr-placeholder" class="text-slate-500 text-center">
+                <i class="fas fa-spinner fa-spin text-3xl text-purple-500 mb-2"></i>
+                <p class="text-xs font-medium">Fetching QR Code...</p>
+              </div>
+            </div>
+            <button id="wa-refresh-qr-btn" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-all">
+              <i class="fas fa-sync-alt"></i> Refresh QR Code
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. COMMANDS SECTION -->
+    <section id="sec-commands" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fas fa-terminal text-blue-400"></i> Command Manager
+            </h3>
+            <p class="text-slate-400 text-xs mt-1">Enable or disable individual bot commands instantly.</p>
+          </div>
+          <!-- Controls & Search -->
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative">
+              <input type="text" id="cmd-search-input" placeholder="Search commands..." class="glass-input pl-9 pr-4 py-2 rounded-xl text-xs placeholder-slate-500 w-48">
+              <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            </div>
+            <select id="cmd-category-filter" class="glass-input px-3 py-2 rounded-xl text-xs bg-slate-900 focus:outline-none">
+              <option value="all">All Categories</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Commands Grid -->
+        <div id="commands-list-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="p-8 text-center text-slate-500 col-span-full">
+            <i class="fas fa-spinner fa-spin text-2xl mb-2 text-purple-500"></i>
+            <p class="text-xs">Loading bot commands...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. SETTINGS SECTION -->
+    <section id="sec-settings" class="content-section hidden space-y-6">
+      <!-- General Settings Form -->
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fas fa-sliders-h text-indigo-400"></i> General Bot Configuration
+          </h3>
+          <p class="text-slate-400 text-xs mt-1">Manage bot prefix, mode, name, and owner parameters.</p>
+        </div>
+
+        <form id="settings-form" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Bot Prefix</label>
+            <input type="text" id="set-prefix" name="prefix" placeholder="." class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Bot Mode</label>
+            <select id="set-mode" name="mode" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs bg-slate-900">
+              <option value="private">Private (Owner / Sudo Only)</option>
+              <option value="public">Public (Everyone)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Bot Name</label>
+            <input type="text" id="set-botName" name="botName" placeholder="Hemix" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Owner Name</label>
+            <input type="text" id="set-ownerName" name="ownerName" placeholder="Owner" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Owner Number</label>
+            <input type="text" id="set-ownerNumber" name="ownerNumber" placeholder="923001234567" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Timezone</label>
+            <input type="text" id="set-timezone" name="timezone" placeholder="Asia/Karachi" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Menu Footer Text</label>
+            <input type="text" id="set-footer" name="footer" placeholder="Powered by Hemix Bot V1.0" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div class="md:col-span-2 flex justify-end pt-2">
+            <button type="submit" class="btn-gradient px-6 py-3 rounded-xl font-semibold text-xs text-white shadow-lg flex items-center gap-2">
+              <i class="fas fa-save"></i> Save Settings
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Change Dashboard Password Card -->
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+        <h3 class="text-md font-bold text-white flex items-center gap-2">
+          <i class="fas fa-key text-amber-400"></i> Change Dashboard Password
+        </h3>
+        <form id="change-pwd-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Current Password</label>
+            <input type="password" id="change-curr-pwd" required placeholder="Current Password" class="glass-input w-full px-4 py-2 rounded-xl text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">New Password</label>
+            <input type="password" id="change-new-pwd" required placeholder="New Password (min 4 chars)" class="glass-input w-full px-4 py-2 rounded-xl text-xs">
+          </div>
+          <div class="md:col-span-2 flex justify-end">
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition-all">
+              Update Password
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 5. AI CONFIG SECTION -->
+    <section id="sec-ai" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fas fa-brain text-pink-400"></i> Artificial Intelligence Integration
+            </h3>
+            <p class="text-slate-400 text-xs mt-1">Configure AI API keys, base URLs, and model selection for AI commands.</p>
+          </div>
+        </div>
+
+        <form id="ai-config-form" class="space-y-5 max-w-2xl">
+          <div class="flex items-center justify-between p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+            <div>
+              <span class="block text-xs font-bold text-white">Enable AI Commands</span>
+              <span class="text-[11px] text-slate-400">Allow users to interact with AI models</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="ai-enabled-toggle" class="sr-only peer">
+              <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+            </label>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Provider</label>
+            <input type="text" id="ai-provider" value="openai" readonly class="glass-input w-full px-4 py-2.5 rounded-xl text-xs bg-slate-900/80 text-slate-400 cursor-not-allowed">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">API Key</label>
+            <div class="relative">
+              <input type="password" id="ai-api-key" placeholder="sk-..." class="glass-input w-full pl-4 pr-10 py-2.5 rounded-xl text-xs">
+              <button type="button" id="toggle-ai-key-btn" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Base URL</label>
+            <input type="text" id="ai-base-url" placeholder="https://api.openai.com/v1" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Model</label>
+            <input type="text" id="ai-model" placeholder="gpt-3.5-turbo" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="btn-gradient px-6 py-3 rounded-xl font-semibold text-xs text-white shadow-lg flex items-center gap-2">
+              <i class="fas fa-save"></i> Save AI Config
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 6. ANTI FEATURES SECTION -->
+    <section id="sec-anti" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fas fa-shield-alt text-amber-400"></i> Anti Features Configuration
+          </h3>
+          <p class="text-slate-400 text-xs mt-1">Configure protection rules per WhatsApp group JID.</p>
+        </div>
+
+        <div class="space-y-5 max-w-2xl">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Target Group JID</label>
+            <input type="text" id="anti-group-jid" placeholder="1203630123456789@g.us" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+            <p class="text-[11px] text-slate-500 mt-1">Enter WhatsApp Group JID or select from Group Settings.</p>
+          </div>
+
+          <div class="space-y-3">
+            <!-- Anti Link -->
+            <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="block text-xs font-bold text-white">Anti-Link</span>
+                <span class="text-[11px] text-slate-400">Automatically delete group invite / external links</span>
+              </div>
+              <input type="checkbox" id="anti-link-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+
+            <!-- Anti Bot -->
+            <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="block text-xs font-bold text-white">Anti-Bot</span>
+                <span class="text-[11px] text-slate-400">Automatically remove unauthorized bots</span>
+              </div>
+              <input type="checkbox" id="anti-bot-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+
+            <!-- Anti Spam -->
+            <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="block text-xs font-bold text-white">Anti-Spam</span>
+                <span class="text-[11px] text-slate-400">Detect & limit flood spam messages</span>
+              </div>
+              <input type="checkbox" id="anti-spam-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+
+            <!-- Anti Delete -->
+            <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="block text-xs font-bold text-white">Anti-Delete</span>
+                <span class="text-[11px] text-slate-400">Resend deleted messages in group</span>
+              </div>
+              <input type="checkbox" id="anti-delete-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+
+            <!-- Anti Media -->
+            <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="block text-xs font-bold text-white">Anti-Media</span>
+                <span class="text-[11px] text-slate-400">Block image/video spam</span>
+              </div>
+              <input type="checkbox" id="anti-media-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+
+            <!-- Anti Badword -->
+            <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="block text-xs font-bold text-white">Anti-Badword</span>
+                <span class="text-[11px] text-slate-400">Delete profanity and profanity warnings</span>
+              </div>
+              <input type="checkbox" id="anti-badword-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Warning Limit</label>
+            <input type="number" id="anti-warning-limit" value="3" min="1" max="10" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button id="save-anti-btn" class="btn-gradient px-6 py-3 rounded-xl font-semibold text-xs text-white shadow-lg flex items-center gap-2">
+              <i class="fas fa-save"></i> Save Anti Settings
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. GROUP SETTINGS SECTION -->
+    <section id="sec-group" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fas fa-users text-cyan-400"></i> Group Specific Settings
+          </h3>
+          <p class="text-slate-400 text-xs mt-1">Manage individual settings per WhatsApp group.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Group List / Selection -->
+          <div class="space-y-3">
+            <h4 class="text-xs font-bold uppercase text-slate-400">Known Groups</h4>
+            <div id="group-settings-list" class="space-y-2 max-h-96 overflow-y-auto pr-1">
+              <p class="text-xs text-slate-500">Loading group records...</p>
+            </div>
+          </div>
+
+          <!-- Group Settings Editor -->
+          <div class="lg:col-span-2 space-y-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
+            <h4 class="text-sm font-bold text-white">Edit Group: <span id="group-edit-target" class="font-mono text-purple-400">Select group</span></h4>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Group JID</label>
+                <input type="text" id="group-edit-jid" placeholder="1203630123456789@g.us" class="glass-input w-full px-4 py-2 rounded-xl text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Custom Prefix Override</label>
+                <input type="text" id="group-edit-prefix" placeholder="Leave empty for default" class="glass-input w-full px-4 py-2 rounded-xl text-xs">
+              </div>
+              <div class="flex justify-end pt-2">
+                <button id="save-group-settings-btn" class="btn-gradient px-5 py-2.5 rounded-xl font-semibold text-xs text-white flex items-center gap-2">
+                  <i class="fas fa-save"></i> Save Group Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. WELCOME / GOODBYE SECTION -->
+    <section id="sec-welcome" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fas fa-door-open text-teal-400"></i> Welcome & Goodbye Messages
+          </h3>
+          <p class="text-slate-400 text-xs mt-1">Configure automated greeting and exit messages when participants join or leave groups.</p>
+        </div>
+
+        <form id="welcome-form" class="space-y-6 max-w-2xl">
+          <!-- Welcome Config -->
+          <div class="space-y-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-white">Enable Welcome Messages</span>
+              <input type="checkbox" id="welcome-enabled-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Welcome Message Template</label>
+              <textarea id="welcome-message-text" rows="3" class="glass-input w-full p-3 rounded-xl text-xs placeholder-slate-500 font-mono"></textarea>
+              <p class="text-[11px] text-slate-500 mt-1">Placeholders: <span class="text-purple-400">@user</span>, <span class="text-purple-400">{group}</span>, <span class="text-purple-400">{desc}</span></p>
+            </div>
+          </div>
+
+          <!-- Goodbye Config -->
+          <div class="space-y-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-white">Enable Goodbye Messages</span>
+              <input type="checkbox" id="goodbye-enabled-toggle" class="w-5 h-5 rounded accent-purple-600">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Goodbye Message Template</label>
+              <textarea id="goodbye-message-text" rows="3" class="glass-input w-full p-3 rounded-xl text-xs placeholder-slate-500 font-mono"></textarea>
+              <p class="text-[11px] text-slate-500 mt-1">Placeholders: <span class="text-purple-400">@user</span>, <span class="text-purple-400">{group}</span></p>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button type="submit" class="btn-gradient px-6 py-3 rounded-xl font-semibold text-xs text-white shadow-lg flex items-center gap-2">
+              <i class="fas fa-save"></i> Save Welcome Config
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 9. STICKER SETTINGS SECTION -->
+    <section id="sec-sticker" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fas fa-sticky-note text-yellow-400"></i> Sticker Metadata Settings
+          </h3>
+          <p class="text-slate-400 text-xs mt-1">Set default pack name and author for created WhatsApp stickers.</p>
+        </div>
+
+        <form id="sticker-form" class="space-y-5 max-w-xl">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Sticker Pack Name</label>
+            <input type="text" id="sticker-pack-name" placeholder="Hemix Bot Pack" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Sticker Author Name</label>
+            <input type="text" id="sticker-author-name" placeholder="Hemix Bot V1.0" class="glass-input w-full px-4 py-2.5 rounded-xl text-xs">
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="btn-gradient px-6 py-3 rounded-xl font-semibold text-xs text-white shadow-lg flex items-center gap-2">
+              <i class="fas fa-save"></i> Save Sticker Settings
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 10. VARIABLES SECTION -->
+    <section id="sec-variables" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fas fa-database text-orange-400"></i> Bot Variables Store
+            </h3>
+            <p class="text-slate-400 text-xs mt-1">Store key-value pairs used by bot plugins and scripts.</p>
+          </div>
+        </div>
+
+        <!-- Add Variable Form -->
+        <form id="add-var-form" class="flex flex-col sm:flex-row gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+          <input type="text" id="new-var-key" required placeholder="Variable Key (e.g. API_TOKEN)" class="glass-input flex-1 px-4 py-2.5 rounded-xl text-xs font-mono">
+          <input type="text" id="new-var-val" required placeholder="Variable Value" class="glass-input flex-1 px-4 py-2.5 rounded-xl text-xs font-mono">
+          <button type="submit" class="btn-gradient px-5 py-2.5 rounded-xl font-semibold text-xs text-white flex items-center gap-2 shrink-0">
+            <i class="fas fa-plus"></i> Set Variable
+          </button>
+        </form>
+
+        <!-- Variables Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 text-[11px] uppercase font-bold">
+                <th class="py-3 px-4">Key</th>
+                <th class="py-3 px-4">Value</th>
+                <th class="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="variables-table-body" class="divide-y border-slate-800/60 text-xs">
+              <tr>
+                <td colspan="3" class="py-6 text-center text-slate-500">Loading variables...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11. SUDO USERS SECTION -->
+    <section id="sec-sudo" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="pb-4 border-b border-slate-800">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fas fa-user-shield text-red-400"></i> Sudo Users Management
+          </h3>
+          <p class="text-slate-400 text-xs mt-1">Sudo users have elevated super-admin privileges to run owner commands.</p>
+        </div>
+
+        <!-- Add Sudo Form -->
+        <form id="add-sudo-form" class="flex flex-col sm:flex-row gap-3 max-w-xl">
+          <input type="text" id="new-sudo-jid" required placeholder="Phone number or JID (e.g. 923001234567)" class="glass-input flex-1 px-4 py-2.5 rounded-xl text-xs">
+          <button type="submit" class="btn-gradient px-5 py-2.5 rounded-xl font-semibold text-xs text-white flex items-center gap-2 shrink-0">
+            <i class="fas fa-user-plus"></i> Add Sudo
+          </button>
+        </form>
+
+        <!-- Sudo Users List -->
+        <div class="space-y-2 max-w-xl">
+          <h4 class="text-xs font-bold uppercase text-slate-400 mb-2">Current Sudo Users</h4>
+          <div id="sudo-users-container" class="space-y-2">
+            <p class="text-xs text-slate-500">Loading sudo list...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12. LOGS SECTION -->
+    <section id="sec-logs" class="content-section hidden space-y-6">
+      <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+        <!-- Terminal Header Toolbar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-3">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fas fa-scroll text-green-400"></i> Real-Time Terminal Logs
+            </h3>
+            <div id="logs-sse-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live SSE
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btn-pause-logs" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700">
+              <i class="fas fa-pause"></i> <span>Pause</span>
+            </button>
+            <button id="btn-clear-logs" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700">
+              <i class="fas fa-eraser"></i> Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Log Terminal Container -->
+        <div id="terminal-log-container" class="terminal-window p-4 h-[500px] overflow-y-auto space-y-1 text-slate-300 select-text">
+          <div class="text-slate-500 text-xs italic">[Hemix Terminal Initialized] Listening for log events...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 13. SYSTEM INFO SECTION -->
+    <section id="sec-system" class="content-section hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Hardware Specs -->
+        <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+          <h3 class="text-md font-bold text-white flex items-center gap-2 pb-3 border-b border-slate-800">
+            <i class="fas fa-microchip text-violet-400"></i> Hardware & CPU Info
+          </h3>
+          <div class="space-y-3 text-xs">
+            <div class="flex justify-between"><span class="text-slate-400">CPU Model:</span><span id="sys-cpu-model" class="font-mono text-slate-200">Unknown</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">CPU Cores:</span><span id="sys-cpu-cores" class="font-mono text-slate-200">0</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Load Average:</span><span id="sys-load-avg" class="font-mono text-slate-200">0.00</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">OS Platform:</span><span id="sys-os-platform" class="font-mono text-slate-200">-</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">OS Release:</span><span id="sys-os-release" class="font-mono text-slate-200">-</span></div>
+          </div>
+        </div>
+
+        <!-- Runtime & Environment -->
+        <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+          <h3 class="text-md font-bold text-white flex items-center gap-2 pb-3 border-b border-slate-800">
+            <i class="fas fa-server text-blue-400"></i> Runtime Environment
+          </h3>
+          <div class="space-y-3 text-xs">
+            <div class="flex justify-between"><span class="text-slate-400">Node.js Version:</span><span id="sys-node-ver" class="font-mono text-purple-400">-</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Bot Version:</span><span id="sys-bot-ver" class="font-mono text-purple-400">-</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Process Memory (RSS):</span><span id="sys-proc-rss" class="font-mono text-slate-200">0 MB</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Process Heap Used:</span><span id="sys-proc-heap" class="font-mono text-slate-200">0 MB</span></div>
+            <div class="flex justify-between"><span class="text-slate-400">Total System RAM:</span><span id="sys-ram-total" class="font-mono text-slate-200">0 MB</span></div>
+          </div>
+        </div>
+
+        <!-- Loaded Plugins -->
+        <div class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 md:col-span-2">
+          <h3 class="text-md font-bold text-white flex items-center gap-2 pb-3 border-b border-slate-800">
+            <i class="fas fa-plug text-emerald-400"></i> Loaded Plugins & Extensions
+          </h3>
+          <div id="sys-plugins-container" class="flex flex-wrap gap-2">
+            <span class="text-xs text-slate-500">Loading plugin list...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Auth & Main Dashboard App Scripts -->
+  <script src="/js/auth.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Hemix Bot V1.0 Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f3ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- FontAwesome CDN -->
+  <link rel="stylesheet" href="/css/fontawesome.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="flex items-center justify-center min-h-screen px-4 py-12">
+
+  <!-- Background Decorative Blurs -->
+  <div class="fixed top-1/4 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="fixed bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+  <!-- Login Glass Card -->
+  <div class="w-full max-w-md relative z-10">
+    <div class="glass-panel p-8 sm:p-10 rounded-2xl shadow-2xl relative overflow-hidden">
+      <!-- Top Accent Bar -->
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+
+      <!-- Header Section -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-accent text-white shadow-lg shadow-purple-500/30 mb-4">
+          <i class="fas fa-robot text-3xl"></i>
+        </div>
+        <h1 class="text-3xl font-extrabold text-white tracking-tight">
+          Hemix <span class="text-gradient">Bot V1.0</span>
+        </h1>
+        <p class="text-slate-400 text-sm mt-2 font-medium">Dashboard Control Panel</p>
+      </div>
+
+      <!-- Error Alert -->
+      <div id="login-error" class="hidden mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center gap-3">
+        <i class="fas fa-exclamation-circle text-red-400 text-lg flex-shrink-0"></i>
+        <span id="login-error-text">Invalid password. Please try again.</span>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="space-y-6">
+        <div>
+          <label for="password" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
+            Dashboard Password
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i class="fas fa-lock"></i>
+            </div>
+            <input 
+              type="password" 
+              id="password" 
+              name="password" 
+              required
+              placeholder="Enter your dashboard password" 
+              class="glass-input w-full pl-10 pr-12 py-3 rounded-xl text-sm placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-all"
+            >
+            <button 
+              type="button" 
+              id="toggle-password-btn" 
+              class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
+              title="Toggle password visibility"
+            >
+              <i class="fas fa-eye" id="toggle-password-icon"></i>
+            </button>
+          </div>
+        </div>
+
+        <button 
+          type="submit" 
+          id="login-submit-btn" 
+          class="btn-gradient w-full py-3.5 px-6 rounded-xl font-semibold text-white shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 flex items-center justify-center gap-2 cursor-pointer transition-all"
+        >
+          <i class="fas fa-sign-in-alt"></i>
+          <span>Log In</span>
+        </button>
+      </form>
+
+      <!-- Footer Info -->
+      <div class="mt-8 text-center border-t border-slate-800/80 pt-6">
+        <p class="text-xs text-slate-500">
+          Hemix WhatsApp Bot &bull; Secure Management System
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Toggle password visibility script
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggleBtn = document.getElementById('toggle-password-btn');
+      const passwordInput = document.getElementById('password');
+      const toggleIcon = document.getElementById('toggle-password-icon');
+
+      if (toggleBtn && passwordInput && toggleIcon) {
+        toggleBtn.addEventListener('click', () => {
+          if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.classList.remove('fa-eye');
+            toggleIcon.classList.add('fa-eye-slash');
+          } else {
+            passwordInput.type = 'password';
+            toggleIcon.classList.remove('fa-eye-slash');
+            toggleIcon.classList.add('fa-eye');
+          }
+        });
+      }
+    });
+  </script>
+  <!-- Auth Script -->
+  <script src="/js/auth.js"></script>
+</body>
+</html>

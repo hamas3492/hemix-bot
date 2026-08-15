@@ -1,0 +1,3 @@
+*.woff2 filter= diff= merge= -text
+*.woff filter= diff= merge= -text
+*.ttf filter= diff= merge= -text
