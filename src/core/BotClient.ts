@@ -230,19 +230,27 @@ export class BotClient extends EventEmitter {
 
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-          if (isLoggedOut) {
+          if (pairPhoneNumber && statusCode !== undefined && statusCode !== null) {
+            // During a pairing-code flow, WhatsApp often closes the
+            // socket right after issuing the code — status 428
+            // (connectionClosed), 515 (restartRequired), 408
+            // (connectionLost/timedOut), or even 401 (loggedOut).
+            // ALL of these are expected at this stage — the user hasn't
+            // entered the code on their phone yet. We must NOT delete
+            // the session on 401 (that would destroy the partial pairing
+            // creds). Instead, immediately reconnect WITHOUT a new
+            // pairing code. The reconnected socket reuses the same creds
+            // and waits for the user to complete linking, at which point
+            // WhatsApp sends connection: 'open'.
+            logger.info(`Pairing flow: connection closed (status ${statusCode}). Reconnecting to wait for phone link...`);
+            this.cleanupSocket();
+            this.connect().catch((err) => logger.error('Error reconnecting in pairing flow:', err));
+          } else if (isLoggedOut) {
             this.state = 'AUTH_FAILED';
             logger.error('Logged out from WhatsApp. Deleting session...');
             this.cleanupSocket();
             this.deleteSessionDir();
             this.emit('connection_update', { state: this.state });
-          } else if (pairPhoneNumber && statusCode === DisconnectReason.restartRequired) {
-            // Expected mid-pairing restart — Baileys requires a fresh
-            // socket right after a pairing code is issued. Reconnect
-            // once WITHOUT a new pairing code (the phone already has it).
-            logger.info('Restart required after pairing code issuance — reconnecting...');
-            this.cleanupSocket();
-            this.connect().catch((err) => logger.error('Error reconnecting after pairing restart:', err));
           } else {
             this.cleanupSocket();
             this.scheduleReconnect();
