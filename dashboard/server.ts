@@ -28,7 +28,6 @@ app.use(
 app.use(compression());
 
 // ─── CORS ──────────────────────────────────────────────────────────
-// Production: use CORS_ORIGINS env var. Fallback: same-origin only.
 const corsOptions: cors.CorsOptions = {
   origin: config.corsOrigins.length > 0 ? config.corsOrigins : true,
   credentials: true,
@@ -57,16 +56,14 @@ app.use(
 );
 
 // ─── Rate Limiting ─────────────────────────────────────────────────
-// Sensitive endpoints: stricter limit
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // 20 per 15 min for auth endpoints
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again later.' },
 });
 
-// General API: relaxed for active dashboard use
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 2000,
@@ -84,7 +81,7 @@ app.use('/api/bot', botRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/logs', logsRouter);
 
-// ─── Health Check Endpoint ────────────────────────────────────────
+// ─── Health Check ──────────────────────────────────────────────────
 app.get('/health', (_req: Request, res: Response) => {
   const memUsage = process.memoryUsage();
   res.json({
@@ -99,9 +96,8 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-// ─── SSE: Real-time Bot Status Stream ──────────────────────────────
+// ─── SSE: Real-time Bot Status ──────────────────────────────────────
 app.get('/api/bot/status-stream', (req: Request, res: Response) => {
-  // Auth check via token query param (SSE can't use headers easily)
   const token = req.query.token as string;
   if (!token) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -115,7 +111,6 @@ app.get('/api/bot/status-stream', (req: Request, res: Response) => {
     'X-Accel-Buffering': 'no',
   });
 
-  // Send current state immediately
   const sendStatus = () => {
     const payload = JSON.stringify({
       state: botClient.state,
@@ -130,16 +125,13 @@ app.get('/api/bot/status-stream', (req: Request, res: Response) => {
 
   sendStatus();
 
-  // Listen for connection updates
   const onUpdate = () => sendStatus();
   botClient.on('connection_update', onUpdate);
 
-  // Heartbeat every 30s to keep connection alive
   const heartbeat = setInterval(() => {
     res.write(': heartbeat\n\n');
   }, 30000);
 
-  // Cleanup on close
   req.on('close', () => {
     botClient.removeListener('connection_update', onUpdate);
     clearInterval(heartbeat);
@@ -164,7 +156,6 @@ app.get('*', (req: Request, res: Response, _next: NextFunction) => {
     return;
   }
 
-  // Never expose .env or session files
   if (req.path.includes('.env') || req.path.includes('data/session')) {
     res.status(403).json({ error: 'Forbidden' });
     return;
@@ -185,7 +176,7 @@ app.get('*', (req: Request, res: Response, _next: NextFunction) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
-// ─── Centralized Error Handler ─────────────────────────────────────
+// ─── Error Handler ─────────────────────────────────────────────────
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[Server Error]', err.message);
   res.status(500).json({
@@ -195,15 +186,14 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 // ─── Start Server ──────────────────────────────────────────────────
 export function startDashboardServer(port?: number) {
-  const listenPort = port || config.port || 3000;
+  const listenPort = port || config.port;
   const server = app.listen(listenPort, '0.0.0.0', () => {
-    console.log(`[Hemix Dashboard] Server listening on port ${listenPort}`);
+    console.log('[Hemix Dashboard] Server started successfully');
     if (config.dashboardUrl) {
-      console.log(`[Hemix Dashboard] Production URL: ${config.dashboardUrl}`);
+      console.log(`[Hemix Dashboard] URL: ${config.dashboardUrl}`);
     }
   });
 
-  // Graceful shutdown
   const shutdown = () => {
     console.log('[Hemix Dashboard] Shutting down gracefully...');
     server.close();

@@ -43,16 +43,18 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/index.js ./index.js
 COPY --from=builder /app/dashboard/public ./dashboard/public
 
 # Create data directory for persistent sqlite and session data
 RUN mkdir -p /app/data
 
-# Environment configuration
+# Environment configuration — PORT comes from hosting platform, not hardcoded
 ENV NODE_ENV=production
-ENV PORT=3000
 
-EXPOSE 3000
+# Katabump / Railway / Render / Heroku all set PORT automatically
+# Do NOT hardcode PORT here — let the platform decide
+EXPOSE ${PORT:-3000}
 VOLUME /app/data
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "index.js"]

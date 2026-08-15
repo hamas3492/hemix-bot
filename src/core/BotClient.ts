@@ -10,6 +10,7 @@ import pino from 'pino';
 import { EventEmitter } from 'events';
 import path from 'path';
 import fs from 'fs';
+import QRCode from 'qrcode';
 import { config } from '../config';
 import logger from '../utils/logger';
 import { detectPlatform, formatJid } from '../utils/helpers';
@@ -31,6 +32,7 @@ export class BotClient extends EventEmitter {
   private qrCode: string | null = null;
   private sessionDir: string;
   private isConnecting: boolean = false;
+  private pairingCodeRequested: boolean = false;
 
   private currentBackoffDelay: number = 3000;
   private readonly MIN_BACKOFF_DELAY: number = 3000;
@@ -85,6 +87,7 @@ export class BotClient extends EventEmitter {
     this.qrCode = null;
     this.phoneNumber = null;
     this.userName = null;
+    this.pairingCodeRequested = false;
   }
 
   private scheduleReconnect(): void {
@@ -106,9 +109,55 @@ export class BotClient extends EventEmitter {
     }, nextDelay);
   }
 
+  private async printQRToConsole(qr: string): Promise<void> {
+    try {
+      const qrText = await QRCode.toString(qr, { type: 'terminal', small: true });
+      console.log('\n');
+      console.log('╔═══════════════════════════════════════════╗');
+      console.log('║  📱 Scan this QR Code with WhatsApp:       ║');
+      console.log('║  WhatsApp → Settings → Linked Devices      ║');
+      console.log('║  → Link a Device → Scan QR                ║');
+      console.log('╚═══════════════════════════════════════════╝');
+      console.log(qrText);
+      console.log('───────────────────────────────────────────');
+    } catch (err) {
+      logger.error('Failed to print QR to console:', err);
+    }
+  }
+
+  private async tryAutoPairingCode(): Promise<void> {
+    if (this.pairingCodeRequested) return;
+    if (!config.ownerNumber) return;
+    if (!this.sock) return;
+
+    this.pairingCodeRequested = true;
+
+    try {
+      const cleanNumber = config.ownerNumber.replace(/[^0-9]/g, '');
+      const code = await this.sock.requestPairingCode(cleanNumber);
+
+      const formattedCode = code.match(/.{1,4}/g)?.join('-') || code;
+
+      console.log('\n');
+      console.log('╔═══════════════════════════════════════════╗');
+      console.log(`║  🔑 PAIRING CODE: ${formattedCode.padEnd(22)}║`);
+      console.log('║                                           ║');
+      console.log(`║  Enter this code in WhatsApp:             ║`);
+      console.log('║  WhatsApp → Settings → Linked Devices      ║');
+      console.log('║  → Link with Phone Number                  ║');
+      console.log('╚═══════════════════════════════════════════╝');
+      console.log('\n');
+
+      logger.info(`Pairing code generated for ${cleanNumber}: ${formattedCode}`);
+      this.emit('pairing_code', code);
+    } catch (err) {
+      logger.error('Failed to generate pairing code:', err);
+    }
+  }
+
   public async connect(): Promise<void> {
     if (this.isConnecting) {
-      logger.warn('Connection attempt already in progress. Guarding against duplicate connect() call.');
+      logger.warn('Connection attempt already in progress.');
       return;
     }
 
@@ -125,9 +174,9 @@ export class BotClient extends EventEmitter {
 
       const credsFilePath = path.join(this.sessionDir, 'creds.json');
       if (fs.existsSync(credsFilePath)) {
-        logger.info('Session credentials found (creds.json). Restoring WhatsApp session...');
+        logger.info('Session credentials found. Restoring WhatsApp session...');
       } else {
-        logger.info('No session credentials found. Starting fresh authentication session...');
+        logger.info('No session found. Starting fresh authentication...');
       }
 
       this.state = 'CONNECTING';
@@ -142,7 +191,6 @@ export class BotClient extends EventEmitter {
       this.sock = makeWASocket({
         version,
         logger: silentLogger as any,
-        printQRInTerminal: true,
         auth: {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, silentLogger as any),
@@ -158,7 +206,18 @@ export class BotClient extends EventEmitter {
         if (qr) {
           this.qrCode = qr;
           this.state = 'WAITING';
-          logger.info('QR Code generated/refreshed. Scan with WhatsApp.');
+          logger.info('QR Code generated. Scan with WhatsApp or use pairing code.');
+
+          // Print QR to console (visible in Katabump Console tab)
+          this.printQRToConsole(qr).catch(() => {});
+
+          // Auto-request pairing code if OWNER_NUMBER is set
+          if (config.ownerNumber && !this.pairingCodeRequested) {
+            setTimeout(() => {
+              this.tryAutoPairingCode().catch(() => {});
+            }, 3000);
+          }
+
           this.emit('qr', qr);
           this.emit('connection_update', { state: this.state, qr });
         }
@@ -175,7 +234,7 @@ export class BotClient extends EventEmitter {
           this.phoneNumber = userJid ? userJid.split(':')[0].split('@')[0] : null;
           this.userName = this.sock?.user?.name || this.sock?.user?.notify || config.botName || 'Hemix';
 
-          logger.info(`WhatsApp connection established successfully! Logged in as: ${this.userName} (${this.phoneNumber || 'unknown'})`);
+          logger.info(`WhatsApp connected! Logged in as: ${this.userName} (${this.phoneNumber || 'unknown'})`);
           this.emit('connection_update', { state: this.state, user: this.getUserInfo() });
 
           await this.sendConnectedMessage();
@@ -184,13 +243,13 @@ export class BotClient extends EventEmitter {
           const statusCode = error?.output?.statusCode || error?.code || error?.status;
           const errorMessage = error?.message || (error ? String(error) : 'Unknown error');
 
-          logger.error(`Connection closed. Status code: ${statusCode ?? 'Unknown'}, Reason: ${errorMessage}`, error);
+          logger.error(`Connection closed. Status: ${statusCode ?? 'Unknown'}, Reason: ${errorMessage}`);
 
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
           if (isLoggedOut) {
             this.state = 'AUTH_FAILED';
-            logger.error('Logged out from WhatsApp session. Deleting session directory...');
+            logger.error('Logged out from WhatsApp. Deleting session...');
             this.cleanupSocket();
             this.deleteSessionDir();
             this.emit('connection_update', { state: this.state });
@@ -274,11 +333,11 @@ export class BotClient extends EventEmitter {
 
   public async getPairingCode(phoneNumber: string): Promise<string> {
     if (!this.sock) {
-      throw new Error('BotClient is not initialized yet. Call connect() first.');
+      throw new Error('BotClient is not initialized yet.');
     }
     const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
     const code = await this.sock.requestPairingCode(cleanNumber);
-    logger.info(`Generated pairing code for ${cleanNumber}: ${code}`);
+    logger.info(`Pairing code for ${cleanNumber}: ${code}`);
     this.emit('pairing_code', code);
     return code;
   }

@@ -4,7 +4,7 @@
   "logo": "https://via.placeholder.com/500",
   "keywords": ["whatsapp", "bot", "ai", "dashboard"],
   "env": {
-    "PORT": { "description": "Port for the web dashboard", "value": "3000" },
+    "PORT": { "description": "Port for the web dashboard (platform sets this automatically)" },
     "SESSION_SECRET": { "description": "Secret for session management", "generator": "secret" },
     "AI_API_KEY": { "description": "AI API key for chatbot", "required": false },
     "OWNER_NUMBER": { "description": "Owner WhatsApp number with country code", "required": true }

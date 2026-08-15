@@ -6,6 +6,7 @@ import { commandRegistry } from './core/PluginSystem';
 import { messageHandler } from './handlers/MessageHandler';
 import { eventHandler } from './handlers/EventHandler';
 import { startDashboardServer } from '../dashboard/server';
+import { startTunnel } from './utils/tunnel';
 import { systemService } from './services/SystemService';
 
 async function bootstrap() {
@@ -33,10 +34,17 @@ async function bootstrap() {
 
   // Start web dashboard
   startDashboardServer();
-  if (config.dashboardUrl) {
-    logger.info(`Dashboard available at: ${config.dashboardUrl}`);
-  } else {
-    logger.info(`Dashboard available on port ${config.port}. Set DASHBOARD_URL in .env for production.`);
+
+  // Auto-start tunnel for public dashboard access (Katabump doesn't expose web ports)
+  // Tunnel is enabled by default. Set ENABLE_TUNNEL=false in .env to disable.
+  if (process.env.ENABLE_TUNNEL !== 'false') {
+    const tunnelPort = config.port;
+    // Small delay to ensure server is ready
+    setTimeout(() => {
+      startTunnel(tunnelPort).catch((err) => {
+        logger.warn(`Failed to start tunnel: ${err}`);
+      });
+    }, 3000);
   }
 
   // Connect to WhatsApp
