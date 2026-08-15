@@ -11,7 +11,6 @@
     "docker:start": "docker-compose up -d",
     "docker:logs": "docker-compose logs -f",
     "docker:stop": "docker-compose down",
-    "postinstall": "tsc && npm run build:css",
     "build:css": "tailwindcss -i dashboard/src/tailwind-input.css -o dashboard/public/css/tailwind.css --minify"
   },
   "keywords": [

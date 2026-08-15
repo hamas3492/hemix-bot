@@ -7,7 +7,8 @@
     "PORT": { "description": "Port for the web dashboard (platform sets this automatically)" },
     "SESSION_SECRET": { "description": "Secret for session management", "generator": "secret" },
     "AI_API_KEY": { "description": "AI API key for chatbot", "required": false },
-    "OWNER_NUMBER": { "description": "Owner WhatsApp number with country code", "required": true }
+    "OWNER_NUMBER": { "description": "Owner WhatsApp number with country code", "required": true },
+    "AUTO_UPDATE": { "description": "Auto git-pull latest code on restart. Set false on Heroku/Railway/Render — they already redeploy on git push.", "value": "false", "required": false }
   },
   "buildpacks": [
     { "url": "heroku/nodejs" },
