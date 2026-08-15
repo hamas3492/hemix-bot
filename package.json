@@ -12,7 +12,8 @@
     "docker:logs": "docker-compose logs -f",
     "docker:stop": "docker-compose down",
     "postinstall": "tsc && npm run build:css",
-    "build:css": "tailwindcss -i dashboard/src/tailwind-input.css -o dashboard/public/css/tailwind.css --minify"
+    "build:css": "tailwindcss -i dashboard/src/tailwind-input.css -o dashboard/public/css/tailwind.css --minify",
+    "start:tunnel": "bash start-with-tunnel.sh"
   },
   "keywords": [
     "whatsapp",
