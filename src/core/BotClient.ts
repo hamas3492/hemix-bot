@@ -31,6 +31,9 @@ export class BotClient extends EventEmitter {
   private qrCode: string | null = null;
   private sessionDir: string;
   private isConnecting: boolean = false;
+  private pairingInProgress: boolean = false;
+  private pairingRetries: number = 0;
+  private readonly MAX_PAIRING_RETRIES: number = 5;
 
   private currentBackoffDelay: number = 3000;
   private readonly MIN_BACKOFF_DELAY: number = 3000;
@@ -68,6 +71,7 @@ export class BotClient extends EventEmitter {
   public clearSession(): void {
     this.deleteSessionDir();
     this.ensureSessionDir();
+    this.pairingInProgress = false;
   }
 
   private clearReconnectTimeout(): void {
@@ -95,6 +99,13 @@ export class BotClient extends EventEmitter {
     this.qrCode = null;
     this.phoneNumber = null;
     this.userName = null;
+  }
+
+  private resetPairingFlag(): void {
+    if (this.pairingInProgress) {
+      this.pairingInProgress = false;
+      logger.info('Pairing flow ended.');
+    }
   }
 
   private scheduleReconnect(): void {
@@ -166,20 +177,26 @@ export class BotClient extends EventEmitter {
         generateHighQualityLinkPreview: true,
       });
 
-      // Request the pairing code as early as possible — before any QR is
-      // generated or event listeners attached — but the underlying
-      // WebSocket must actually be OPEN first, otherwise Baileys throws
-      // "Connection Closed" (it can't send the pairing IQ over a socket
-      // that hasn't finished connecting yet). We wait for that here,
-      // then request the code immediately, before the QR-linking path
-      // has a chance to start — waiting longer (e.g. a fixed 2s delay)
-      // is what caused WhatsApp to show "Couldn't link device" before.
+      // Attach creds.save listener BEFORE requesting the pairing code.
+      // The pairing code generates credentials that must be persisted
+      // immediately — if we attach the listener afterwards, a fast
+      // connection close (status 428) can fire before creds are saved,
+      // and the reconnect finds no session ("No session found"),
+      // wasting the pairing code.
+      this.sock.ev.on('creds.update', saveCreds);
+
+      // Request the pairing code as early as possible — but the
+      // WebSocket must be OPEN first, otherwise Baileys throws
+      // "Connection Closed". We wait for that, then request the code
+      // immediately, before the QR-linking path starts.
       let pairingCode: string | undefined;
       if (pairPhoneNumber && !state.creds.registered) {
         const cleanNumber = pairPhoneNumber.replace(/[^0-9]/g, '');
         try {
           await (this.sock as any).waitForSocketOpen();
           pairingCode = await this.sock.requestPairingCode(cleanNumber);
+          this.pairingInProgress = true;
+          this.pairingRetries = 0;
           logger.info(`Pairing code generated for ${cleanNumber}: ${pairingCode}`);
           this.emit('pairing_code', pairingCode);
         } catch (err) {
@@ -189,15 +206,13 @@ export class BotClient extends EventEmitter {
         }
       }
 
-      this.sock.ev.on('creds.update', saveCreds);
-
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
-        // Only surface the QR code when we are NOT in the middle of a
-        // pairing-code link — showing/using both at once is what causes
-        // WhatsApp to reject the pairing code as invalid.
-        if (qr && !pairPhoneNumber) {
+        // Suppress QR during a pairing-code flow — WhatsApp generating
+        // a QR on reconnect would invalidate the pending pairing code
+        // and cause "Couldn't link device".
+        if (qr && !pairPhoneNumber && !this.pairingInProgress) {
           this.qrCode = qr;
           this.state = 'WAITING';
           logger.info('QR Code generated. Available in the dashboard — scan from there.');
@@ -211,6 +226,8 @@ export class BotClient extends EventEmitter {
         } else if (connection === 'open') {
           this.state = 'CONNECTED';
           this.qrCode = null;
+          this.pairingInProgress = false;
+          this.pairingRetries = 0;
           this.currentBackoffDelay = this.MIN_BACKOFF_DELAY;
 
           const userJid = this.sock?.user?.id;
@@ -230,21 +247,31 @@ export class BotClient extends EventEmitter {
 
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-          if (pairPhoneNumber && statusCode !== undefined && statusCode !== null) {
-            // During a pairing-code flow, WhatsApp often closes the
-            // socket right after issuing the code — status 428
-            // (connectionClosed), 515 (restartRequired), 408
-            // (connectionLost/timedOut), or even 401 (loggedOut).
-            // ALL of these are expected at this stage — the user hasn't
-            // entered the code on their phone yet. We must NOT delete
-            // the session on 401 (that would destroy the partial pairing
-            // creds). Instead, immediately reconnect WITHOUT a new
-            // pairing code. The reconnected socket reuses the same creds
-            // and waits for the user to complete linking, at which point
-            // WhatsApp sends connection: 'open'.
-            logger.info(`Pairing flow: connection closed (status ${statusCode}). Reconnecting to wait for phone link...`);
-            this.cleanupSocket();
-            this.connect().catch((err) => logger.error('Error reconnecting in pairing flow:', err));
+          if (this.pairingInProgress && statusCode !== undefined && statusCode !== null) {
+            this.pairingRetries++;
+            if (this.pairingRetries > this.MAX_PAIRING_RETRIES) {
+              // Too many reconnects during pairing — the user likely
+              // didn't enter the code in time or WhatsApp rejected it.
+              // Stop the pairing flow and clean up.
+              logger.error(`Pairing flow: max retries (${this.MAX_PAIRING_RETRIES}) exceeded. Aborting.`);
+              this.pairingInProgress = false;
+              this.pairingRetries = 0;
+              this.state = 'AUTH_FAILED';
+              this.cleanupSocket();
+              this.deleteSessionDir();
+              this.emit('connection_update', { state: this.state });
+            } else {
+              // During a pairing-code flow, WhatsApp closes the socket
+              // after issuing the code (428/515/408/401). Reconnect
+              // WITHOUT a new pairing code. The reconnected socket
+              // reuses the same creds and waits for the user to enter
+              // the code on their phone, at which point WhatsApp sends
+              // connection: 'open'. Suppress QR (invalidates pairing)
+              // and don't delete session on 401 (destroys partial creds).
+              logger.info(`Pairing flow: connection closed (status ${statusCode}). Reconnect ${this.pairingRetries}/${this.MAX_PAIRING_RETRIES}...`);
+              this.cleanupSocket();
+              this.connect().catch((err) => logger.error('Error reconnecting in pairing flow:', err));
+            }
           } else if (isLoggedOut) {
             this.state = 'AUTH_FAILED';
             logger.error('Logged out from WhatsApp. Deleting session...');
@@ -306,6 +333,8 @@ export class BotClient extends EventEmitter {
 
   public async disconnect(): Promise<void> {
     this.cleanupSocket();
+    this.pairingInProgress = false;
+    this.pairingRetries = 0;
     this.state = 'DISCONNECTED';
     this.emit('connection_update', { state: this.state });
     logger.info('BotClient disconnected.');
