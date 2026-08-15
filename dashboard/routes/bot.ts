@@ -91,20 +91,30 @@ botRouter.post('/pair', async (req: Request, res: Response) => {
       return;
     }
 
-    if (!botClient.sock) {
-      // Connect first if socket isn't active
-      await botClient.connect();
-      // Wait a moment for socket to initialize
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-
     const cleanNumber = number.replace(/[^0-9]/g, '');
     if (cleanNumber.length < 5) {
       res.status(400).json({ error: 'Invalid phone number format' });
       return;
     }
 
-    const code = await botClient.getPairingCode(cleanNumber);
+    if (botClient.state === 'CONNECTED') {
+      res.status(400).json({ error: 'Already connected. Logout first to link a different device.' });
+      return;
+    }
+
+    // Always start pairing from a clean slate. Any existing/partial socket
+    // or stale session is torn down first — mixing an in-progress QR
+    // handshake or leftover partial creds with a new pairing-code request
+    // is exactly what causes WhatsApp to show "Couldn't link device".
+    await botClient.disconnect();
+    botClient.clearSession();
+
+    const code = await botClient.connect(cleanNumber);
+    if (!code) {
+      res.status(500).json({ error: 'Failed to generate pairing code. Please try again.' });
+      return;
+    }
+
     res.json({ success: true, code, number: cleanNumber });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to generate pairing code' });

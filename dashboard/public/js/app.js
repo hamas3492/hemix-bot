@@ -379,13 +379,39 @@ function setupWhatsAppTab() {
       if (data && data.code) {
         const resultBox = document.getElementById('wa-pair-result-box');
         const codeDisplay = document.getElementById('wa-pair-code-display');
-        if (resultBox && codeDisplay) { codeDisplay.textContent = data.code; resultBox.classList.remove('hidden'); showToast('Pairing code generated!', 'success'); }
+        if (resultBox && codeDisplay) {
+          codeDisplay.textContent = data.code;
+          resultBox.classList.remove('hidden');
+          showToast('Pairing code generated! Enter it in WhatsApp now — it expires fast.', 'success');
+          startPairCountdown();
+        }
       }
     } catch (err) { showToast(err.message || 'Failed to get pairing code', 'error'); }
     finally { btnGetCode.disabled = false; btnGetCode.innerHTML = '<i class="fas fa-key"></i> Get Pairing Code'; }
   });
 
-  const btnRefreshQr = document.getElementById('wa-refresh-qr-btn');
+  let _pairCountdownTimer = null;
+function startPairCountdown() {
+  const countdownEl = document.getElementById('wa-pair-countdown');
+  const expiryEl = document.getElementById('wa-pair-expiry');
+  if (!countdownEl) return;
+  if (_pairCountdownTimer) clearInterval(_pairCountdownTimer);
+  let seconds = 60;
+  countdownEl.textContent = seconds;
+  if (expiryEl) expiryEl.classList.remove('text-red-400');
+  _pairCountdownTimer = setInterval(() => {
+    seconds -= 1;
+    if (countdownEl) countdownEl.textContent = Math.max(seconds, 0);
+    if (seconds <= 10 && expiryEl) expiryEl.classList.add('text-red-400');
+    if (seconds <= 0) {
+      clearInterval(_pairCountdownTimer);
+      _pairCountdownTimer = null;
+      if (expiryEl) expiryEl.textContent = '⏱ Code expired — click "Get Pairing Code" again.';
+    }
+  }, 1000);
+}
+
+const btnRefreshQr = document.getElementById('wa-refresh-qr-btn');
   if (btnRefreshQr) btnRefreshQr.addEventListener('click', () => fetchDashboardQR());
 }
 

@@ -27,17 +27,24 @@ export class MessageHandler {
 
     if (!text || !text.trim()) return;
 
-    const sender = msg.key.participant || msg.key.remoteJid || '';
     const isGroup = jid.endsWith('@g.us');
-    const senderName = msg.pushName || sender.split('@')[0] || 'User';
+
+    // When the owner sends a message from their OWN linked number — e.g.
+    // typing commands into "Message yourself" — Baileys marks it
+    // `fromMe: true` (self-bot messages always look this way, since the
+    // bot IS the owner's account). Resolve `sender` to the bot's own JID
+    // in that case so owner permission checks + cooldowns work correctly,
+    // instead of blanket-ignoring every fromMe message like before.
+    const sender = msg.key.fromMe
+      ? (sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : jid)
+      : msg.key.participant || msg.key.remoteJid || '';
+
+    const senderName = msg.key.fromMe
+      ? (sock.user?.name || sock.user?.notify || 'You')
+      : msg.pushName || sender.split('@')[0] || 'User';
     const quoted = msg.message.extendedTextMessage?.contextInfo?.quotedMessage
       ? { message: msg.message.extendedTextMessage.contextInfo.quotedMessage, key: msg.message.extendedTextMessage.contextInfo.stanzaId ? { id: msg.message.extendedTextMessage.contextInfo.stanzaId, remoteJid: jid } : null }
       : null;
-
-    // Anti-loop: ignore messages from self (unless it's a command from owner)
-    if (msg.key.fromMe) {
-      return;
-    }
 
     // Ignore blocked users
     if (db.isBlocked(sender)) {
@@ -129,8 +136,10 @@ export class MessageHandler {
       return;
     }
 
-    // Chatbot auto-reply if enabled for this chat
-    const isChatbotEnabled = db.getChatbotState(jid);
+    // Chatbot auto-reply if enabled for this chat. Skip for fromMe
+    // messages — the owner typing plain text to themselves shouldn't
+    // trigger the AI (and it prevents any accidental self-reply loop).
+    const isChatbotEnabled = !msg.key.fromMe && db.getChatbotState(jid);
     if (isChatbotEnabled) {
       try {
         const response = await aiService.respond(jid, text);

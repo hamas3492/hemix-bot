@@ -31,7 +31,6 @@ export class BotClient extends EventEmitter {
   private qrCode: string | null = null;
   private sessionDir: string;
   private isConnecting: boolean = false;
-  private pairingCodeRequested: boolean = false;
 
   private currentBackoffDelay: number = 3000;
   private readonly MIN_BACKOFF_DELAY: number = 3000;
@@ -61,6 +60,16 @@ export class BotClient extends EventEmitter {
     }
   }
 
+  /**
+   * Public wipe of the session directory. Used before starting a fresh
+   * pairing-code link so stale/partial creds from a previous failed
+   * attempt never interfere with a new one.
+   */
+  public clearSession(): void {
+    this.deleteSessionDir();
+    this.ensureSessionDir();
+  }
+
   private clearReconnectTimeout(): void {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -86,7 +95,6 @@ export class BotClient extends EventEmitter {
     this.qrCode = null;
     this.phoneNumber = null;
     this.userName = null;
-    this.pairingCodeRequested = false;
   }
 
   private scheduleReconnect(): void {
@@ -108,7 +116,14 @@ export class BotClient extends EventEmitter {
     }, nextDelay);
   }
 
-  public async connect(): Promise<void> {
+  /**
+   * Connect to WhatsApp. If `pairPhoneNumber` is provided, the pairing
+   * code is requested IMMEDIATELY after the socket is created — before
+   * any QR code has a chance to be generated — which avoids the QR vs
+   * pairing-code race condition that caused "Couldn't link device"
+   * errors. Returns the pairing code when one was requested.
+   */
+  public async connect(pairPhoneNumber?: string): Promise<string | void> {
     if (this.isConnecting) {
       logger.warn('Connection attempt already in progress.');
       return;
@@ -151,17 +166,41 @@ export class BotClient extends EventEmitter {
         generateHighQualityLinkPreview: true,
       });
 
+      // Request the pairing code as early as possible — before any QR is
+      // generated or event listeners attached — but the underlying
+      // WebSocket must actually be OPEN first, otherwise Baileys throws
+      // "Connection Closed" (it can't send the pairing IQ over a socket
+      // that hasn't finished connecting yet). We wait for that here,
+      // then request the code immediately, before the QR-linking path
+      // has a chance to start — waiting longer (e.g. a fixed 2s delay)
+      // is what caused WhatsApp to show "Couldn't link device" before.
+      let pairingCode: string | undefined;
+      if (pairPhoneNumber && !state.creds.registered) {
+        const cleanNumber = pairPhoneNumber.replace(/[^0-9]/g, '');
+        try {
+          await (this.sock as any).waitForSocketOpen();
+          pairingCode = await this.sock.requestPairingCode(cleanNumber);
+          logger.info(`Pairing code generated for ${cleanNumber}: ${pairingCode}`);
+          this.emit('pairing_code', pairingCode);
+        } catch (err) {
+          logger.error('Failed to request pairing code', err);
+          this.isConnecting = false;
+          throw err;
+        }
+      }
+
       this.sock.ev.on('creds.update', saveCreds);
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
+        // Only surface the QR code when we are NOT in the middle of a
+        // pairing-code link — showing/using both at once is what causes
+        // WhatsApp to reject the pairing code as invalid.
+        if (qr && !pairPhoneNumber) {
           this.qrCode = qr;
           this.state = 'WAITING';
           logger.info('QR Code generated. Available in the dashboard — scan from there.');
-
-          // QR is only shown in the dashboard, NOT in the console.
           this.emit('qr', qr);
           this.emit('connection_update', { state: this.state, qr });
         }
@@ -197,6 +236,13 @@ export class BotClient extends EventEmitter {
             this.cleanupSocket();
             this.deleteSessionDir();
             this.emit('connection_update', { state: this.state });
+          } else if (pairPhoneNumber && statusCode === DisconnectReason.restartRequired) {
+            // Expected mid-pairing restart — Baileys requires a fresh
+            // socket right after a pairing code is issued. Reconnect
+            // once WITHOUT a new pairing code (the phone already has it).
+            logger.info('Restart required after pairing code issuance — reconnecting...');
+            this.cleanupSocket();
+            this.connect().catch((err) => logger.error('Error reconnecting after pairing restart:', err));
           } else {
             this.cleanupSocket();
             this.scheduleReconnect();
@@ -207,10 +253,13 @@ export class BotClient extends EventEmitter {
       this.sock.ev.on('messages.upsert', (data) => {
         this.emit('message_received', data);
       });
+
+      return pairingCode;
     } catch (error) {
       logger.error('Failed to connect BotClient:', error);
       this.state = 'DISCONNECTED';
       this.emit('connection_update', { state: this.state, error });
+      throw error;
     } finally {
       this.isConnecting = false;
     }
@@ -273,17 +322,6 @@ export class BotClient extends EventEmitter {
 
   public getQR(): string | null {
     return this.qrCode;
-  }
-
-  public async getPairingCode(phoneNumber: string): Promise<string> {
-    if (!this.sock) {
-      throw new Error('BotClient is not initialized yet.');
-    }
-    const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
-    const code = await this.sock.requestPairingCode(cleanNumber);
-    logger.info(`Pairing code generated for ${cleanNumber}: ${code}`);
-    this.emit('pairing_code', code);
-    return code;
   }
 
   public getState(): ConnectionState {
