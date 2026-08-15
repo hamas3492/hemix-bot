@@ -6,7 +6,7 @@ import { commandRegistry } from './core/PluginSystem';
 import { messageHandler } from './handlers/MessageHandler';
 import { eventHandler } from './handlers/EventHandler';
 import { startDashboardServer } from '../dashboard/server';
-import { systemService } from './services/SystemService';
+import { printDashboardUrl } from './utils/tunnel';
 import fs from 'fs';
 import path from 'path';
 
@@ -33,11 +33,17 @@ async function bootstrap() {
     }
   });
 
-  // Start web dashboard only — bot connection is initiated from the dashboard
+  // Start web dashboard
   startDashboardServer();
 
-  // If a saved WhatsApp session exists, auto-reconnect so the bot comes back online
-  // after a server restart. If no session exists, user must connect from the dashboard.
+  // Print dashboard URL to console — works on any platform
+  // Detects platform URL (Heroku, Railway, Render) or auto-creates one (Katabump)
+  setTimeout(async () => {
+    await printDashboardUrl(config.port);
+  }, 2000);
+
+  // If a saved WhatsApp session exists, auto-reconnect.
+  // If not, user must connect from the dashboard.
   const sessionDir = path.join(process.cwd(), 'data', 'session');
   const credsFile = path.join(sessionDir, 'creds.json');
 
@@ -47,12 +53,12 @@ async function bootstrap() {
       logger.error('Auto-reconnect failed. Start the bot from the dashboard.', err);
     });
   } else {
-    logger.info('No WhatsApp session found. Connect from the dashboard at the website URL.');
+    logger.info('No WhatsApp session found. Connect from the dashboard URL shown above.');
     logger.info('Dashboard → WhatsApp Link tab → click "Start Bot" → scan QR or use pairing code.');
   }
 }
 
-// Global Exception Handlers (log don't crash)
+// Global Exception Handlers
 process.on('uncaughtException', (error) => {
   logger.error(`Uncaught Exception: ${error.message}`);
 });
