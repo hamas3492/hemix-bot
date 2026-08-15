@@ -3,6 +3,19 @@ A modern self-pairing WhatsApp bot with AI, group management, media tools and a 
 
 **Works on ANY platform** — Katabump, Heroku, Railway, Render, VPS, Docker, Replit, Glitch.
 
+🔄 Auto-Update (No More Manual Re-uploads)
+On every restart, the bot automatically pulls the latest code from GitHub (`git fetch` + `git reset --hard`).
+You never need to manually re-download/re-upload files after a code change — just push to GitHub and restart the bot.
+- Session data, `.env`, and `node_modules` are gitignored — never touched by an update.
+- Dependencies are only reinstalled if `package-lock.json` actually changed.
+- Disable with `AUTO_UPDATE=false` (recommended on Railway/Render/Heroku — they already redeploy on `git push`).
+
+⚡ No Build Step Required
+The bot runs directly via `ts-node` (transpile-only mode) — no `tsc` project-wide compile on install/restart.
+This fixes OOM crashes (`exit code 137`) that happened on low-memory containers like Katabump when the old
+`postinstall` script tried to type-check the entire 370+ command codebase.
+If a pre-built `dist/` exists (e.g. from a Docker build), it's used automatically for best performance.
+
 📦 Requirements
 - Node.js v18 or higher
 - ffmpeg installed on your system
